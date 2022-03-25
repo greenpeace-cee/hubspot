@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/Hubspot</base>
+  <class>HubspotPortal</class>
+  <name>civicrm_hubspot_portal</name>
+  <comment></comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique HubspotPortal ID</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>hubspot_portal_identifier</name>
+    <title>HubSpot Portal ID</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique identifier of portal in HubSpot</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+
+  <index>
+    <name>UI_hubspot_portal_identifier</name>
+    <fieldName>hubspot_portal_identifier</fieldName>
+    <unique>true</unique>
+  </index>
+
+  <field>
+    <name>name</name>
+    <title>Portal Name</title>
+    <type>varchar</type>
+    <length>255</length>
+    <required>true</required>
+    <comment>Portal name</comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>api_key</name>
+    <title>API Key</title>
+    <type>varchar</type>
+    <length>255</length>
+    <required>true</required>
+    <comment>API Key</comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>config</name>
+    <title>Config (JSON)</title>
+    <type>text</type>
+    <serialize>JSON</serialize>
+    <comment>Configuration for this portal</comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>created_date</name>
+    <type>timestamp</type>
+    <comment></comment>
+    <required>true</required>
+    <default>CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+  <field>
+    <name>modified_date</name>
+    <title>Modified Date</title>
+    <type>timestamp</type>
+    <comment></comment>
+    <default>CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+</table>

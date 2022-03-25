@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/Hubspot</base>
+  <class>HubspotContact</class>
+  <name>civicrm_hubspot_contact</name>
+  <comment></comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique HubspotContact ID</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>contact_id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>FK to Contact</comment>
+  </field>
+  <foreignKey>
+    <name>contact_id</name>
+    <table>civicrm_contact</table>
+    <key>id</key>
+    <onDelete>CASCADE</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>hubspot_portal_id</name>
+    <type>int unsigned</type>
+    <comment>FK to HubSpotPortal</comment>
+  </field>
+  <foreignKey>
+    <name>hubspot_portal_id</name>
+    <table>civicrm_hubspot_portal</table>
+    <key>id</key>
+    <onDelete>SET NULL</onDelete>
+  </foreignKey>
+
+  <index>
+    <name>UI_contact_id_hubspot_portal_id</name>
+    <fieldName>contact_id</fieldName>
+    <fieldName>hubspot_portal_id</fieldName>
+    <unique>true</unique>
+  </index>
+
+  <field>
+    <name>hubspot_vid</name>
+    <title>HubSpot VID</title>
+    <type>int unsigned</type>
+    <required>false</required>
+    <comment>Unique identifier of contact in HubSpot</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+
+  <index>
+    <name>UI_hubspot_vid_hubspot_portal_id</name>
+    <fieldName>hubspot_vid</fieldName>
+    <fieldName>hubspot_portal_id</fieldName>
+    <unique>true</unique>
+  </index>
+
+  <index>
+    <name>index_hubspot_vid</name>
+    <fieldName>hubspot_vid</fieldName>
+  </index>
+
+  <field>
+    <name>last_state</name>
+    <title>Last State (JSON)</title>
+    <required>false</required>
+    <type>longtext</type>
+    <serialize>JSON</serialize>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>custom_data</name>
+    <title>Custom Data (JSON)</title>
+    <required>false</required>
+    <type>longtext</type>
+    <serialize>JSON</serialize>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>is_dirty</name>
+    <title>Dirty?</title>
+    <required>true</required>
+    <type>boolean</type>
+    <default>0</default>
+    <comment>Is this record dirty?</comment>
+    <html>
+      <type>Checkbox</type>
+    </html>
+  </field>
+
+  <field>
+    <name>created_date</name>
+    <type>timestamp</type>
+    <comment></comment>
+    <required>true</required>
+    <default>CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+  <field>
+    <name>modified_date</name>
+    <title>Modified Date</title>
+    <type>timestamp</type>
+    <comment></comment>
+    <default>CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+</table>

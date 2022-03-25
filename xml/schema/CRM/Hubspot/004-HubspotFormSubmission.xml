@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/Hubspot</base>
+  <class>HubspotFormSubmission</class>
+  <name>civicrm_hubspot_form_submission</name>
+  <comment>FIXME</comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique HubspotFormSubmission ID</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>hubspot_portal_id</name>
+    <type>int unsigned</type>
+    <comment>FK to HubSpotPortal</comment>
+  </field>
+  <foreignKey>
+    <name>hubspot_portal_id</name>
+    <table>civicrm_hubspot_portal</table>
+    <key>id</key>
+    <onDelete>SET NULL</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>hubspot_contact_id</name>
+    <type>int unsigned</type>
+    <comment>FK to HubSpotContact</comment>
+  </field>
+  <foreignKey>
+    <name>hubspot_contact_id</name>
+    <table>civicrm_hubspot_contact</table>
+    <key>id</key>
+    <onDelete>CASCADE</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>guid</name>
+    <title>Form GUID</title>
+    <type>varchar</type>
+    <length>50</length>
+    <required>true</required>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>hubspot_timestamp</name>
+    <title>HubSpot Timestamp</title>
+    <type>decimal</type>
+    <length>20,0</length>
+    <required>true</required>
+    <comment>Submission timestamp in HubSpot. VARCHAR because core does not support BIGINT.</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+
+  <index>
+    <name>index_hubspot_timestamp</name>
+    <fieldName>hubspot_timestamp</fieldName>
+  </index>
+
+  <field>
+    <name>submission_data</name>
+    <title>Submission Data (JSON)</title>
+    <required>true</required>
+    <type>longtext</type>
+    <serialize>JSON</serialize>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>form_submission_status_id</name>
+    <title>Form Submission Status</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>ID of form submission status</comment>
+    <pseudoconstant>
+      <optionGroupName>hubspot_form_submission_status</optionGroupName>
+    </pseudoconstant>
+    <html>
+      <type>Select</type>
+    </html>
+  </field>
+
+  <index>
+    <name>index_form_submission_status_id</name>
+    <fieldName>form_submission_status_id</fieldName>
+  </index>
+
+  <field>
+    <name>status_details</name>
+    <title>Status Details</title>
+    <required>false</required>
+    <type>text</type>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>created_date</name>
+    <type>timestamp</type>
+    <comment></comment>
+    <required>true</required>
+    <default>CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+  <field>
+    <name>modified_date</name>
+    <title>Modified Date</title>
+    <type>timestamp</type>
+    <comment></comment>
+    <default>CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+</table>

@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+
+<table>
+  <base>CRM/Hubspot</base>
+  <class>HubspotContactUpdate</class>
+  <name>civicrm_hubspot_contact_update</name>
+  <comment></comment>
+  <log>true</log>
+
+  <field>
+    <name>id</name>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>Unique HubspotContactUpdate ID</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+  <primaryKey>
+    <name>id</name>
+    <autoincrement>true</autoincrement>
+  </primaryKey>
+
+  <field>
+    <name>hubspot_portal_id</name>
+    <type>int unsigned</type>
+    <comment>FK to HubSpotPortal</comment>
+  </field>
+  <foreignKey>
+    <name>hubspot_portal_id</name>
+    <table>civicrm_hubspot_portal</table>
+    <key>id</key>
+    <onDelete>SET NULL</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>hubspot_contact_id</name>
+    <type>int unsigned</type>
+    <comment>FK to HubSpotContact</comment>
+  </field>
+  <foreignKey>
+    <name>hubspot_contact_id</name>
+    <table>civicrm_hubspot_contact</table>
+    <key>id</key>
+    <onDelete>CASCADE</onDelete>
+  </foreignKey>
+
+  <field>
+    <name>hubspot_vid</name>
+    <title>HubSpot VID</title>
+    <type>int unsigned</type>
+    <required>false</required>
+    <comment>Unique identifier of contact in HubSpot</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+
+  <index>
+    <name>index_hubspot_vid</name>
+    <fieldName>hubspot_vid</fieldName>
+  </index>
+
+  <field>
+    <name>hubspot_timestamp</name>
+    <title>HubSpot Timestamp</title>
+    <type>decimal</type>
+    <length>20,0</length>
+    <required>false</required>
+    <comment>Submission timestamp in HubSpot. DECIMAL because core does not support BIGINT.</comment>
+    <html>
+      <type>Number</type>
+    </html>
+  </field>
+
+  <field>
+    <name>update_type_id</name>
+    <title>Update Type</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>ID of update type</comment>
+    <pseudoconstant>
+      <optionGroupName>hubspot_update_type</optionGroupName>
+    </pseudoconstant>
+    <html>
+      <type>Select</type>
+    </html>
+  </field>
+
+  <field>
+    <name>inbound_payload</name>
+    <title>Inbound Payload (JSON)</title>
+    <required>false</required>
+    <type>longtext</type>
+    <serialize>JSON</serialize>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>update_data</name>
+    <title>Update Data (JSON)</title>
+    <required>false</required>
+    <type>longtext</type>
+    <serialize>JSON</serialize>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>update_status_id</name>
+    <title>Update Status</title>
+    <type>int unsigned</type>
+    <required>true</required>
+    <comment>ID of update status</comment>
+    <pseudoconstant>
+      <optionGroupName>hubspot_update_status</optionGroupName>
+    </pseudoconstant>
+    <html>
+      <type>Select</type>
+    </html>
+  </field>
+
+  <index>
+    <name>index_update_status_id</name>
+    <fieldName>update_status_id</fieldName>
+  </index>
+
+  <field>
+    <name>status_details</name>
+    <title>Status Details</title>
+    <required>false</required>
+    <type>text</type>
+    <comment></comment>
+    <html>
+      <type>Text</type>
+    </html>
+  </field>
+
+  <field>
+    <name>created_date</name>
+    <type>timestamp</type>
+    <comment></comment>
+    <required>true</required>
+    <default>CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+  <field>
+    <name>modified_date</name>
+    <title>Modified Date</title>
+    <type>timestamp</type>
+    <comment></comment>
+    <default>CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP</default>
+    <readonly>true</readonly>
+  </field>
+
+</table>

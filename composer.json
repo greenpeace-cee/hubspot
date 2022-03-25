@@ -1,0 +1,14 @@
+{
+    "name": "greenpeace-cee/hubspot",
+    "type": "project",
+    "license": "AGPL-3.0",
+    "authors": [
+        {
+            "name": "Patrick Figel",
+            "email": "pfigel@greenpeace.org"
+        }
+    ],
+    "require": {
+        "hubspot/hubspot-php": "^3.2"
+    }
+}

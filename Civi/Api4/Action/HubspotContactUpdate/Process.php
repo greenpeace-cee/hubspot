@@ -12,6 +12,7 @@ use Civi\Api4\HubspotPortal;
 use Civi\Api4\Phone;
 use Civi\HubSpot\ConflictException;
 use Civi\HubSpot\Converter;
+use Civi\HubSpot\MergedContactException;
 use Civi\HubSpot\OutOfDateException;
 
 class Process extends BasicBatchAction {
@@ -65,27 +66,8 @@ class Process extends BasicBatchAction {
       $this->payload = Converter::getFlatPayload($item['inbound_payload']);
       $this->civiPayload = Converter::getCiviPayload($this->payload);
       $this->updateData = [];
-      $matches = $this->getMatches($item);
-      if (count($matches) > 1) {
-        throw new ConflictException('Found multiple match candidates. Please resolve duplicates (Format: CiviCRM Contact ID / Match Parameter(s)): ' . json_encode($matches));
-      }
-      $contactId = NULL;
-      $hubspotContactId = NULL;
-      if (count($matches) == 1) {
-        $contactId = array_keys($matches)[0];
-        // check if matching CiviCRM contact is associated with a differing HubspotContact
-        $hubspotContact = HubspotContact::get(FALSE)
-          ->addSelect('id', 'hubspot_vid')
-          ->addWhere('hubspot_portal_id', '=', $this->item['hubspot_portal_id'])
-          ->addWhere('contact_id', '=', $contactId)
-          ->execute()
-          ->first();
-        $hubspotContactId = $hubspotContact['id'];
-        if (!empty($hubspotContact['hubspot_vid']) && $hubspotContact['hubspot_vid'] != $this->item['hubspot_vid']) {
-          throw new ConflictException("Identified CiviCRM contact {$contactId} which is already associated with HubSpot contact VID {$hubspotContact['hubspot_vid']}");
-        }
-      }
 
+      // first, detect and discard out-of-date updates
       $count = HubspotContactUpdate::get(FALSE)
         ->selectRowCount()
         ->addWhere('hubspot_portal_id', '=', $this->item['hubspot_portal_id'])
@@ -96,6 +78,43 @@ class Process extends BasicBatchAction {
         ->execute();
       if ($count->rowCount > 0) {
         throw new OutOfDateException('Superseded by a more recent inbound contact update');
+      }
+
+      // pre-process merges found within the payload. merges may impact conflict handling later on
+      $this->processMerge();
+
+      // detect conflicts (dupes)
+      $matches = $this->getMatches($item);
+      if (count($matches) > 1) {
+        throw new ConflictException('Found multiple match candidates. Please resolve duplicates (Format: CiviCRM Contact ID / Match Parameter(s)): ' . json_encode($matches));
+      }
+      $contactId = NULL;
+      $hubspotContactId = NULL;
+      if (count($matches) == 1) {
+        $contactId = array_keys($matches)[0];
+        // check if matching CiviCRM contact is associated with a differing HubspotContact
+        $hubspotContact = HubspotContact::get(FALSE)
+          ->addSelect('id', 'hubspot_vid', 'is_merge')
+          ->addWhere('hubspot_portal_id', '=', $this->item['hubspot_portal_id'])
+          ->addWhere('contact_id', '=', $contactId)
+          ->addWhere('is_merge', '=', FALSE)
+          ->execute()
+          ->first();
+        $hubspotContactId = $hubspotContact['id'];
+        if (!empty($hubspotContact['hubspot_vid']) && $hubspotContact['hubspot_vid'] != $this->item['hubspot_vid']) {
+          throw new ConflictException("Identified CiviCRM contact {$contactId} which is already associated with HubSpot contact VID {$hubspotContact['hubspot_vid']}");
+        }
+      }
+
+      // detect updates to merged HubSpot contacts
+      $countHubspotContacts = HubspotContact::get(FALSE)
+        ->selectRowCount()
+        ->addWhere('hubspot_portal_id', '=', $this->item['hubspot_portal_id'])
+        ->addWhere('hubspot_vid', '=', $this->item['hubspot_vid'])
+        ->addWhere('is_merge', '=', TRUE)
+        ->execute();
+      if ($countHubspotContacts->rowCount > 0) {
+        throw new MergedContactException('Ignoring update for merged HubSpot contact');
       }
 
       $contact = $this->executeAndLogApi('Contact', 'save', $this->getContactParameters($contactId));
@@ -126,7 +145,7 @@ class Process extends BasicBatchAction {
         ->addValue('status_details', $e->getMessage())
         ->execute();
     }
-    catch (OutOfDateException $e) {
+    catch (OutOfDateException | MergedContactException $e) {
       $tx->rollback();
       unset($tx);
       HubspotContactUpdate::update(FALSE)
@@ -198,6 +217,7 @@ class Process extends BasicBatchAction {
       ->addSelect('contact_id')
       ->addWhere('hubspot_portal_id', '=', $item['hubspot_portal_id'])
       ->addWhere('hubspot_vid', '=', $item['hubspot_vid'])
+      ->addWhere('is_merge', '=', FALSE)
       ->execute();
     foreach ($hubspotContacts as $hubspotContact) {
       $matches[$hubspotContact['contact_id']][] = 'hubspot_vid';
@@ -258,6 +278,19 @@ class Process extends BasicBatchAction {
         ->execute();
       foreach ($contacts as $contact) {
         $matches[$contact['id']][] = 'phone_and_name';
+      }
+    }
+
+    if (count($matches) > 0) {
+      // remove any contacts flagged with is_merge
+      $mergedContacts = HubspotContact::get(FALSE)
+        ->addSelect('contact_id')
+        ->addWhere('hubspot_portal_id', '=', $item['hubspot_portal_id'])
+        ->addWhere('contact_id', 'IN', array_keys($matches))
+        ->addWhere('is_merge', '=', TRUE)
+        ->execute();
+      foreach ($mergedContacts as $mergedContact) {
+        unset($matches[$mergedContact['contact_id']]);
       }
     }
 
@@ -393,6 +426,32 @@ class Process extends BasicBatchAction {
       }
     }
     return empty($records) ? NULL : ['records' => $records];
+  }
+
+
+  /**
+   * Process contacts merged in HubSpot
+   *
+   * @return void
+   * @throws \API_Exception
+   * @throws \Civi\API\Exception\UnauthorizedException
+   */
+  protected function processMerge() {
+    if (count($this->payload['merged-vids']) > 0) {
+      foreach ($this->payload['merged-vids'] as $mergedVid) {
+        if ($mergedVid != $this->payload['canonical-vid']) {
+          $this->executeAndLogApi('HubspotContact', 'update', [
+            'where' => [
+              ['hubspot_portal_id', '=', $this->item['hubspot_portal_id']],
+              ['hubspot_vid', '=', $mergedVid],
+            ],
+            'values' => [
+              'is_merge' => TRUE,
+            ],
+          ]);
+        }
+      }
+    }
   }
 
 }

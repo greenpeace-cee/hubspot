@@ -56,6 +56,9 @@ class Converter {
             $result[$propertyKey] = $propertyValue['value'] ?? NULL;
           }
         }
+        else {
+          $result[$key] = $value;
+        }
       }
     }
     return $result;

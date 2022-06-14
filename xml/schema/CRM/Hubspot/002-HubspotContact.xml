@@ -113,6 +113,18 @@
   </field>
 
   <field>
+    <name>is_merge</name>
+    <title>Merged?</title>
+    <required>true</required>
+    <type>boolean</type>
+    <default>0</default>
+    <comment>Is this record a non-canonical merge?</comment>
+    <html>
+      <type>Checkbox</type>
+    </html>
+  </field>
+
+  <field>
     <name>created_date</name>
     <type>timestamp</type>
     <comment></comment>

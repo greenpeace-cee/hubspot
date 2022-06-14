@@ -60,6 +60,7 @@ CREATE TABLE `civicrm_hubspot_contact` (
   `last_state` longtext NULL,
   `custom_data` longtext NULL,
   `is_dirty` tinyint NOT NULL DEFAULT 0 COMMENT 'Is this record dirty?',
+  `is_merge` tinyint NOT NULL DEFAULT 0 COMMENT 'Is this record a non-canonical merge?',
   `created_date` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   `modified_date` timestamp DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),

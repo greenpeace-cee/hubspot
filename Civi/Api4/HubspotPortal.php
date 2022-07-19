@@ -6,7 +6,7 @@ use Civi\Api4\Action\HubspotPortal\Poll;
 /**
  * HubspotPortal entity.
  *
- * Provided by the FIXME extension.
+ * Provided by the HubSpot extension.
  *
  * @package Civi\Api4
  */

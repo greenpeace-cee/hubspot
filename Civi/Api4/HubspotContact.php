@@ -4,7 +4,7 @@ namespace Civi\Api4;
 /**
  * HubspotContact entity.
  *
- * Provided by the FIXME extension.
+ * Provided by the HubSpot extension.
  *
  * @package Civi\Api4
  */

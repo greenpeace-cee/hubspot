@@ -6,7 +6,7 @@ use Civi\Api4\Action\HubspotContactUpdate\Process;
 /**
  * HubspotContactUpdate entity.
  *
- * Provided by the FIXME extension.
+ * Provided by the HubSpot extension.
  *
  * @package Civi\Api4
  */

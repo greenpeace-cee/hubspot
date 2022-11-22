@@ -43,6 +43,14 @@ class Poll extends BasicBatchAction {
     ]);
   }
 
+  public function getSelect() {
+    return [
+      'id',
+      'api_key',
+      'config',
+    ];
+  }
+
   /**
    * @param array $item
    * @return array

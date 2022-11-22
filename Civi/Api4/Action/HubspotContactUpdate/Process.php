@@ -46,6 +46,17 @@ class Process extends BasicBatchAction {
     ]);
   }
 
+  public function getSelect() {
+    return [
+      'id',
+      'update_type_id',
+      'hubspot_portal_id',
+      'hubspot_vid',
+      'hubspot_timestamp',
+      'inbound_payload',
+    ];
+  }
+
   /**
    * @param array $item
    *

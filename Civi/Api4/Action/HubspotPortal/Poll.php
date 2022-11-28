@@ -59,7 +59,7 @@ class Poll extends BasicBatchAction {
     // TODO: add lock
     $this->hubspotPortal = $item;
     Listener::$enabled = FALSE;
-    $this->client = \SevenShores\Hubspot\Factory::create($item['api_key']);
+    $this->client = \SevenShores\Hubspot\Factory::createWithOAuth2Token($item['api_key']);
     $countUpdates = $this->getContactUpdates();
     $countFormSubmissions = $this->getFormSubmissions();
 

@@ -73,7 +73,7 @@ class Process extends BasicBatchAction {
         ->addWhere('id', '=', $this->item['hubspot_portal_id'])
         ->execute()
         ->first();
-      $this->client = \SevenShores\Hubspot\Factory::create($this->hubspotPortal['api_key']);
+      $this->client = \SevenShores\Hubspot\Factory::createWithOAuth2Token($this->hubspotPortal['api_key']);
       $this->payload = Converter::getFlatPayload($item['inbound_payload']);
       $this->civiPayload = Converter::getCiviPayload($this->payload);
       $this->updateData = [];

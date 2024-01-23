@@ -91,7 +91,7 @@ class Process extends BasicBatchAction {
             ->addValue('source_contact_data.last_name', $submission['lastname'])
             ->addValue('source_contact_data.email', $submission['email'])
             ->addValue('source_contact_data.phone', $this->normalizePhone($submission['phone']))
-            ->addValue('source_contact_data.newsletter', $submission['subscriptions_hu_community_newsletter'] ?? FALSE)
+            ->addValue('source_contact_data.newsletter', $submission[$hubspotPortal['config']['default_newsletter_field'] ?? 'newsletter'] ?? FALSE)
             ->addValue('utm.utm_source', $submission['utm_source'] ?? NULL)
             ->addValue('utm.utm_medium', $submission['utm_medium'] ?? NULL)
             ->addValue('utm.utm_campaign', $submission['utm_campaign'] ?? NULL)

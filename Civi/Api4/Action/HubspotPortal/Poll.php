@@ -10,7 +10,6 @@ use Civi\Api4\HubspotContactUpdate;
 use Civi\Api4\HubspotFormSubmission;
 use Civi\Api4\HubspotPortal;
 use Civi\HubSpot\Converter;
-use Civi\HubSpot\Listener;
 
 class Poll extends BasicBatchAction {
 
@@ -36,11 +35,11 @@ class Poll extends BasicBatchAction {
   private $hubspotPortal;
 
   public function __construct($entityName, $actionName) {
-    parent::__construct($entityName, $actionName, [
-      'id',
-      'api_key',
-      'config',
-    ]);
+    return parent::__construct($entityName, $actionName);
+  }
+
+  protected function getSelect() {
+    return ['id', 'api_key', 'config'];
   }
 
   /**
@@ -50,14 +49,13 @@ class Poll extends BasicBatchAction {
   protected function doTask($item) {
     // TODO: add lock
     $this->hubspotPortal = $item;
-    Listener::$enabled = FALSE;
-    $this->client = \SevenShores\Hubspot\Factory::create($item['api_key']);
+    $this->client = \SevenShores\Hubspot\Factory::createWithAccessToken($item['api_key']);
     $countUpdates = $this->getContactUpdates();
-    $countFormSubmissions = $this->getFormSubmissions();
+    //$countFormSubmissions = $this->getFormSubmissions();
 
     return [
       'updates' => $countUpdates,
-      'form_submissions' => $countFormSubmissions,
+      //'form_submissions' => $countFormSubmissions,
       'state' => $this->hubspotPortal['config']['state'] ?? NULL,
     ];
   }
@@ -66,6 +64,7 @@ class Poll extends BasicBatchAction {
     $maxTimestamp = $lastTimestamp = NULL;
     $count = 0;
     do {
+      // TODO: property should be built dynamically based on sync config
       $query = [
         'count' => $this->batchSize,
         'property' => [
@@ -74,6 +73,7 @@ class Poll extends BasicBatchAction {
           'lastname',
           'phone',
           'email',
+          'suppressed',
           'city',
           'zip',
           'address',
@@ -131,6 +131,11 @@ class Poll extends BasicBatchAction {
         // last timestamp was already processed previously, stop looping
         break;
       }
+      if (!empty($this->getLimit()) && $count >= $this->getLimit()) {
+        // ensure we don't set last_timestamp if we're stopping due to limit
+        $maxTimestamp = NULL;
+        break;
+      }
     } while (count($result->contacts ?? []) > 0 && $result->{'has-more'});
     if (!empty($maxTimestamp)) {
       $this->hubspotPortal['config']['state']['contact_recently_updated_last_timestamp'] = $maxTimestamp;
@@ -183,6 +188,11 @@ class Poll extends BasicBatchAction {
           // last timestamp was already processed previously, stop looping
           break;
         }
+        if (!empty($this->getLimit()) && $count >= $this->getLimit()) {
+          // ensure we don't set last_timestamp if we're stopping due to limit
+          $maxTimestamp = NULL;
+          break;
+        }
         $params['after'] = $submissions['paging']['next']['after'];
       } while (!empty($submissions['paging']['next']['after']));
       if (!empty($maxTimestamp)) {
@@ -194,33 +204,6 @@ class Poll extends BasicBatchAction {
       }
     }
     return $count;
-  }
-
-  protected function getOrCreateHubspotContact($item, $contactUpdate) {
-    $hubspotContact = HubspotContact::get(FALSE)
-      ->addSelect('id')
-      ->addWhere('hubspot_portal_id', '=', $item['id'])
-      ->addWhere('hubspot_vid', '=', $contactUpdate->vid)
-      ->execute()
-      ->first();
-    if (!empty($hubspotContact['id'])) {
-      return $hubspotContact['id'];
-    }
-    $contact = Contact::create(FALSE)
-      ->addValue('first_name', $contactUpdate->properties->firstname->value)
-      ->addValue('last_name', $contactUpdate->properties->lastname->value)
-      ->addChain('email', Email::create()
-        ->addValue('contact_id', '$id')
-        ->addValue('email', $contactUpdate->properties->email->value)
-      )
-      ->addChain('hubspot_contact', HubspotContact::create()
-        ->addValue('contact_id', '$id')
-        ->addValue('hubspot_portal_id', $item['id'])
-        ->addValue('hubspot_vid', $contactUpdate->vid)
-      )
-      ->execute()
-      ->first();
-    return $contact['hubspot_contact'][0]['id'];
   }
 
 }

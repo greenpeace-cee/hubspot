@@ -37,6 +37,7 @@
   <field>
     <name>hubspot_portal_id</name>
     <type>int unsigned</type>
+    <required>true</required>
     <comment>FK to HubSpotPortal</comment>
   </field>
   <foreignKey>

@@ -1,0 +1,64 @@
+{
+  "vid": 1,
+  "canonical-vid": 1,
+  "merged-vids": [],
+  "portal-id": 1,
+  "is-contact": true,
+  "properties": {
+    "zip": {
+      "value": "1030"
+    },
+    "country": {
+      "value": "AT"
+    },
+    "subscriptions_at_community_newsletter": {
+      "value": "true"
+    },
+    "firstname": {
+      "value": "Jane"
+    },
+    "address": {
+      "value": "Landstra\u00dfe 999"
+    },
+    "city": {
+      "value": "Wien"
+    },
+    "phone": {
+      "value": "+436801233211"
+    },
+    "lastmodifieddate": {
+      "value": "1668283016340"
+    },
+    "createdate": {
+      "value": "1668282785853"
+    },
+    "email": {
+      "value": "jane.doe@example.com"
+    },
+    "lastname": {
+      "value": "Doe"
+    }
+  },
+  "identity-profiles": [
+    {
+      "vid": 1,
+      "saved-at-timestamp": 1668282785941,
+      "deleted-changed-timestamp": 0,
+      "identities": [
+        {
+          "type": "EMAIL",
+          "value": "jane.doe@example.com",
+          "timestamp": 1668282785853,
+          "is-primary": true
+        },
+        {
+          "type": "LEAD_GUID",
+          "value": "9030fcda-8e12-45e9-b454-f17624422172",
+          "timestamp": 1668282785937
+        }
+      ]
+    }
+  ],
+  "merge-audits": [],
+  "addedAt": 1668283016340
+}

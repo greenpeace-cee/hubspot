@@ -55,8 +55,8 @@ ENGINE=InnoDB;
 CREATE TABLE `civicrm_hubspot_contact` (
   `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Unique HubspotContact ID',
   `contact_id` int unsigned NOT NULL COMMENT 'FK to Contact',
-  `hubspot_portal_id` int unsigned COMMENT 'FK to HubSpotPortal',
-  `hubspot_vid` int unsigned NULL COMMENT 'Unique identifier of contact in HubSpot',
+  `hubspot_portal_id` int unsigned NULL COMMENT 'FK to HubSpotPortal',
+  `hubspot_vid` decimal(20,0) NULL COMMENT 'Unique identifier of contact in HubSpot. DECIMAL because core does not support BIGINT.',
   `last_state` longtext NULL,
   `custom_data` longtext NULL,
   `is_dirty` tinyint NOT NULL DEFAULT 0 COMMENT 'Is this record dirty?',
@@ -79,9 +79,9 @@ ENGINE=InnoDB;
 -- *******************************************************/
 CREATE TABLE `civicrm_hubspot_contact_update` (
   `id` int unsigned NOT NULL AUTO_INCREMENT COMMENT 'Unique HubspotContactUpdate ID',
-  `hubspot_portal_id` int unsigned COMMENT 'FK to HubSpotPortal',
+  `hubspot_portal_id` int unsigned NULL COMMENT 'FK to HubSpotPortal',
   `hubspot_contact_id` int unsigned COMMENT 'FK to HubSpotContact',
-  `hubspot_vid` int unsigned NULL COMMENT 'Unique identifier of contact in HubSpot',
+  `hubspot_vid` decimal(20,0) NULL COMMENT 'Unique identifier of contact in HubSpot. DECIMAL because core does not support BIGINT.',
   `hubspot_timestamp` decimal(20,0) NULL COMMENT 'Submission timestamp in HubSpot. DECIMAL because core does not support BIGINT.',
   `update_type_id` int unsigned NOT NULL COMMENT 'ID of update type',
   `inbound_payload` longtext NULL,

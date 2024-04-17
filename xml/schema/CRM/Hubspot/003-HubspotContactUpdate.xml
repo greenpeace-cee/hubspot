@@ -24,6 +24,7 @@
   <field>
     <name>hubspot_portal_id</name>
     <type>int unsigned</type>
+    <required>false</required>
     <comment>FK to HubSpotPortal</comment>
   </field>
   <foreignKey>
@@ -48,9 +49,10 @@
   <field>
     <name>hubspot_vid</name>
     <title>HubSpot VID</title>
-    <type>int unsigned</type>
+    <type>decimal</type>
+    <length>20,0</length>
     <required>false</required>
-    <comment>Unique identifier of contact in HubSpot</comment>
+    <comment>Unique identifier of contact in HubSpot. DECIMAL because core does not support BIGINT.</comment>
     <html>
       <type>Number</type>
     </html>

@@ -36,11 +36,15 @@ class Converter {
    */
   public static function getCiviPayload(array $data): array {
     return [
-      'first_name' => $data['firstname'],
-      'last_name' => $data['lastname'],
-      'formal_title' => $data['title'],
-      'email' => $data['email'],
-      'phone' => $data['phone'],
+      'first_name' => $data['firstname'] ?? NULL,
+      'last_name' => $data['lastname'] ?? NULL,
+      'formal_title' => $data['title'] ?? NULL,
+      'email' => $data['email'] ?? NULL,
+      'phone' => $data['phone'] ?? NULL,
+      'street_address' => $data['address'] ?? NULL,
+      'city' => $data['city'] ?? NULL,
+      'postal_code' => $data['zip'] ?? NULL,
+      'country_id:name' => $data['country'] ?? NULL,
     ];
   }
 

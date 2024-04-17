@@ -9,6 +9,7 @@
         }
     ],
     "require": {
-        "hubspot/hubspot-php": "^3.2"
+        "hubspot/hubspot-php": "^5.1",
+        "php": ">=7.4"
     }
 }

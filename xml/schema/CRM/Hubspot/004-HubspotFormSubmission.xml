@@ -4,7 +4,7 @@
   <base>CRM/Hubspot</base>
   <class>HubspotFormSubmission</class>
   <name>civicrm_hubspot_form_submission</name>
-  <comment>FIXME</comment>
+  <comment></comment>
   <log>true</log>
 
   <field>

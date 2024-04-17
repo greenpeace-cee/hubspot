@@ -4,7 +4,7 @@ use CRM_Hubspot_ExtensionUtil as E;
 /**
  * Collection of upgrade steps.
  */
-class CRM_Hubspot_Upgrader extends CRM_Hubspot_Upgrader_Base {
+class CRM_Hubspot_Upgrader extends CRM_Extension_Upgrader_Base {
 
   public function upgrade_1001() {
     $this->ctx->log->info('Applying update 1001');
@@ -14,6 +14,17 @@ class CRM_Hubspot_Upgrader extends CRM_Hubspot_Upgrader_Base {
       $logging = new CRM_Logging_Schema();
       $logging->fixSchemaDifferences();
     }
+    return TRUE;
+  }
+
+  public function upgrade_1002() {
+    $this->ctx->log->info('Applying update 1002');
+    CRM_Core_DAO::executeQuery("ALTER TABLE `civicrm_hubspot_contact` MODIFY COLUMN `hubspot_portal_id` int unsigned NULL COMMENT 'FK to HubSpotPortal'");
+    CRM_Core_DAO::executeQuery("ALTER TABLE `civicrm_hubspot_contact` MODIFY COLUMN `hubspot_vid` decimal(20,0) NULL COMMENT 'Unique identifier of contact in HubSpot. DECIMAL because core does not support BIGINT.'");
+    CRM_Core_DAO::executeQuery("ALTER TABLE `civicrm_hubspot_contact_update` MODIFY COLUMN `hubspot_portal_id` int unsigned NULL COMMENT 'FK to HubSpotPortal'");
+    CRM_Core_DAO::executeQuery("ALTER TABLE `civicrm_hubspot_contact_update` MODIFY COLUMN `hubspot_vid` decimal(20,0) NULL COMMENT 'Unique identifier of contact in HubSpot. DECIMAL because core does not support BIGINT.'");
+    $logging = new CRM_Logging_Schema();
+    $logging->fixSchemaDifferences();
     return TRUE;
   }
 

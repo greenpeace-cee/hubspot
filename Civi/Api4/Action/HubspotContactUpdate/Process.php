@@ -36,14 +36,7 @@ class Process extends BasicBatchAction {
   private $updateData = [];
 
   public function __construct($entityName, $actionName) {
-    parent::__construct($entityName, $actionName, [
-      'id',
-      'update_type_id',
-      'hubspot_portal_id',
-      'hubspot_vid',
-      'hubspot_timestamp',
-      'inbound_payload',
-    ]);
+    parent::__construct($entityName, $actionName);
   }
 
   public function getSelect() {

@@ -36,11 +36,7 @@ class Poll extends BasicBatchAction {
   private $hubspotPortal;
 
   public function __construct($entityName, $actionName) {
-    parent::__construct($entityName, $actionName, [
-      'id',
-      'api_key',
-      'config',
-    ]);
+    parent::__construct($entityName, $actionName);
   }
 
   public function getSelect() {

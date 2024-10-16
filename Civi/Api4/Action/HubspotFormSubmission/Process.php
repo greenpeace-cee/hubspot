@@ -37,13 +37,7 @@ class Process extends BasicBatchAction {
         self::$mediumMap[$label] = $value;
       }
     }
-    parent::__construct($entityName, $actionName, [
-      'id',
-      'hubspot_portal_id',
-      'hubspot_contact_id',
-      'hubspot_timestamp',
-      'submission_data',
-    ]);
+    parent::__construct($entityName, $actionName);
   }
 
   public function getSelect() {

@@ -4,155 +4,123 @@ use Civi\Api4;
 use CRM_Hubspot_HubspotContact as HubspotContact;
 use GuzzleHttp\Psr7\Response;
 
-class CRM_Hubspot_HubspotBatchProcessor {
+class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
 
   const BATCH_SIZE = 10;
 
-  private static $_apiClient;
+  // Batch types
+  const CREATE_CONTACTS = 'create-contacts';
+  const UPDATE_CONTACTS = 'update-contacts';
 
-  private $successCallback;
-  private $failureCallback;
-  private $createBatch = [];
-  private $updateBatch = [];
+  private array $batch = [];
+  private int $batchCount = 0;
+  private string $batchType;
+  private string $onFailure;
+  private string $onSuccess;
+  private CRM_Queue_Queue_SqlParallel $queue;
 
-  private static function apiClient() {
-    if (!isset(self::$_apiClient)) {
-      $hubspot_account = Api4\HubspotAccount::get(FALSE)
-        ->addSelect('api_key')
-        ->execute()
-        ->first();
+  public function __construct(string $batch_type, string $on_success, string $on_failure) {
+    $this->batchType = $batch_type;
+    $this->onSuccess = $on_success;
+    $this->onFailure = $on_failure;
 
-      self::$_apiClient = HubSpot\Factory::createWithAccessToken($hubspot_account['api_key']);
-    }
-
-    return self::$_apiClient;
-  }
-
-  public static function createContact(HubspotContact $contact): HubspotContact {
-    $response = self::apiClient()->apiRequest([
-      'method' => 'POST',
-      'path'   => "/crm/v3/objects/contacts",
-      'body'   => [
-        'properties' => $contact->toHubspotProperties(),
-      ],
+    $this->queue = Civi::queue('hubspot-sync-' . $batch_type, [
+      'type' => 'SqlParallel',
+      'runner' => 'task',
+      'reset' => TRUE,
+      'error' => 'delete',
     ]);
-
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    return HubspotContact::fromHubspotProperties($response_body['properties']);
   }
 
-  public function enqueueForCreate(HubspotContact $contact): void {
-    $this->createBatch[] = [ 'properties' => $contact->toHubspotProperties() ];
+  public function add(HubspotContact $contact): void {
+    $this->batch[] = $contact;
 
-    if (count($this->createBatch) === self::BATCH_SIZE) {
-      $this->processBatch($this->createBatch, 'create');
+    if (count($this->batch) < self::BATCH_SIZE) return;
+
+    $queue_task = $this->createQueueTask($this->batch);
+    $this->queue->createItem($queue_task);
+    $this->batch = [];
+  }
+
+  private function createQueueTask(array $batch): CRM_Queue_Task {
+    $this->batchCount++;
+
+    switch ($this->batchType) {
+      case self::CREATE_CONTACTS: {
+        $request = [
+          'method' => 'POST',
+          'path'   => "/crm/v3/objects/contacts/batch/create",
+          'body'   => [
+            'inputs' => array_map(
+              fn ($contact) => [ 'properties' => $contact->toHubspotProperties() ],
+              $this->batch
+            ),
+          ],
+        ];
+
+        break;
+      }
+
+      case self::UPDATE_CONTACTS: {
+        $request = [
+          'method' => 'POST',
+          'path'   => "/crm/v3/objects/contacts/batch/update",
+          'body'   => [
+            'inputs' => array_map(
+              fn ($contact) => [
+                'id' => $contact->id,
+                'properties' => $contact->toHubspotProperties(),
+              ],
+              $this->batch
+            ),
+          ],
+        ];
+
+        break;
+      }
     }
-  }
 
-  public function enqueueForUpdate(HubspotContact $contact): void {
-    $this->updateBatch[] = [
-      'id' => $contact->id,
-      'properties' => $contact->toHubspotProperties(),
+    $queue_task = new CRM_Queue_Task(
+       [__CLASS__, 'sendBatchRequest'],
+       [$request, $this->onSuccess, $this->onFailure],
+       "Hubspot Sync Batch {$this->batchType}#{$this->batchCount}"
+    );
+
+    $queue_task->runAs = [
+      'contactId' => CRM_Core_Session::getLoggedInContactID(),
+      'domainId'  => 1,
     ];
 
-    if (count($this->updateBatch) === self::BATCH_SIZE) {
-      $this->processBatch($this->updateBatch, 'update');
-    }
+    return $queue_task;
   }
 
   public function flush(): void {
-    if (!empty($this->createBatch)) {
-      $this->processBatch($this->createBatch, 'create');
-    }
+    if (empty($this->batch)) return;
 
-    if (!empty($this->updateBatch)) {
-      $this->processBatch($this->updateBatch, 'update');
-    }
+    $queue_task = $this->createQueueTask($this->batch);
+    $this->queue->createItem($queue_task);
+    $this->batch = [];
   }
 
-  public static function getContactByEmail(string $email): ?HubspotContact {
+  public static function sendBatchRequest(
+    CRM_Queue_TaskContext $_ctx,
+    array $request,
+    string $on_success,
+    string $on_failure
+  ): bool {
     try {
-      $response = self::apiClient()->apiRequest([
-        'method' => 'GET',
-        'path'   => "/crm/v3/objects/contacts/$email?idProperty=email&properties=" . implode(',', [
-          'firstname',
-          'lastname',
-          'email',
-          'civicrm_id',
-          'owned_by',
-          'ownership_score',
-        ]),
-      ]);
+      $response = self::apiClient()->apiRequest($request);
 
-      $response_body = json_decode((string) $response->getBody(), TRUE);
-
-      return HubspotContact::fromHubspotProperties($response_body['properties']);
-    } catch (GuzzleHttp\Exception\BadResponseException $exception) {
-      if ($exception->getResponse()->getStatusCode() === 404) return NULL;
-
-      throw $exception;
-    }
-  }
-
-  private static function parseApiResponse(Response $response): array {
-    $body = (string) $response->getBody();
-
-    if (str_starts_with($response->getHeader('Content-Type')[0], 'application/json')) {
-      $body = json_decode($body, TRUE);
-    }
-
-    return [
-      'statusCode' => $response->getStatusCode(),
-      'body' => $body,
-    ];
-  }
-
-  private function processBatch(array &$batch, string $endpoint): void {
-    $request = [
-      'method' => 'POST',
-      'path'   => "/crm/v3/objects/contacts/batch/$endpoint",
-      'body'   => [
-        'inputs' => $batch,
-      ],
-    ];
-
-    try {
-      $response = self::parseApiResponse(self::apiClient()->apiRequest($request));
-
-      if (in_array($response['statusCode'], [200, 201]) && isset($this->successCallback)) {
-        call_user_func($this->successCallback, $request, $response);
-      } elseif (isset($this->failureCallback)) {
-        call_user_func($this->failureCallback, $request, $response);
+      if (in_array($response->getStatusCode(), [200, 201])) {
+        call_user_func($on_success, $request, $response);
+      } else {
+        call_user_func($on_failure, $request, $response);
       }
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
-      $response = self::parseApiResponse($exception->getResponse());
-
-      if (isset($this->failureCallback)) {
-        call_user_func($this->failureCallback, $request, $response);
-      }
-    } finally {
-      $batch = [];
+      call_user_func($on_failure, $request, $exception->getResponse());
     }
-  }
 
-  public function setBatchResponseCallbacks(array $callbacks) {
-    $this->successCallback = $callbacks['success'] ?? NULL;
-    $this->failureCallback = $callbacks['failure'] ?? NULL;
-  }
-
-  public static function updateContact(HubspotContact $contact): HubspotContact {
-    $response = self::apiClient()->apiRequest([
-      'method' => 'PATCH',
-      'path'   => "/crm/v3/objects/contacts/{$contact->id}",
-      'body'   => [
-        'properties' => $contact->toHubspotProperties(),
-      ],
-    ]);
-
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    return HubspotContact::fromHubspotProperties($response_body['properties']);
+    return TRUE;
   }
 
 }

@@ -6,22 +6,29 @@ use Civi;
 use Civi\Api4;
 use CRM_Core_DAO;
 use CRM_Hubspot_HubspotBatchProcessor as HubspotBatchProcessor;
+use CRM_Hubspot_HubspotClient as HubspotClient;
 use CRM_Hubspot_HubspotContact as HubspotContact;
+use GuzzleHttp\Psr7\Response;
 
 /**
  * Sync modified contacts to HubSpot
  */
 class Sync extends Api4\Generic\AbstractAction {
 
-  private static $_countryIDs;
+  private static array $_countryIDs;
 
   public function _run(Api4\Generic\Result $result) {
-    $processor = new HubspotBatchProcessor();
+    $contact_creator = new HubspotBatchProcessor(
+      HubspotBatchProcessor::CREATE_CONTACTS,
+      __CLASS__ . '::handleSuccessfulBatch',
+      __CLASS__ . "::handleFailedBatch",
+    );
 
-    $processor->setBatchResponseCallbacks([
-      'success' => __CLASS__ . '::handleSuccessfulBatch',
-      'failure' => __CLASS__ . "::handleFailedBatch",
-    ]);
+    $contact_updater = new HubspotBatchProcessor(
+      HubspotBatchProcessor::UPDATE_CONTACTS,
+      __CLASS__ . '::handleSuccessfulBatch',
+      __CLASS__ . "::handleFailedBatch",
+    );
 
     $hubspot_account = Api4\HubspotAccount::get(FALSE)
       ->addSelect('config')
@@ -30,8 +37,8 @@ class Sync extends Api4\Generic\AbstractAction {
 
     $contact_sync_query = $hubspot_account['config']['contactSyncQuery'];
 
-    $created = 0;
-    $updated = 0;
+    $scheduled_for_create = 0;
+    $scheduled_for_update = 0;
 
     foreach (self::selectContactsForSync($contact_sync_query) as $contact_data) {
       $hubspot_contact = HubspotContact::fromCiviProperties($contact_data);
@@ -39,18 +46,19 @@ class Sync extends Api4\Generic\AbstractAction {
       $hubspot_contact->ownershipScore ??= 0;
 
       if (empty($hubspot_contact->id)) {
-        $processor->enqueueForCreate($hubspot_contact);
-        $created++;
+        $contact_creator->add($hubspot_contact);
+        $scheduled_for_create++;
       } else {
-        $processor->enqueueForUpdate($hubspot_contact);
-        $updated++;
+        $contact_updater->add($hubspot_contact);
+        $scheduled_for_update++;
       }
     }
 
-    $processor->flush();
+    $contact_creator->flush();
+    $contact_updater->flush();
 
-    $result['created'] = $created;
-    $result['updated'] = $updated;
+    $result['scheduledForCreate'] = $scheduled_for_create;
+    $result['scheduledForUpdate'] = $scheduled_for_update;
   }
 
   private static function countryID(string $iso_code): ?int {
@@ -67,7 +75,7 @@ class Sync extends Api4\Generic\AbstractAction {
     return self::$_countryIDs[$iso_code] ?? NULL;
   }
 
-  public static function handleFailedBatch(array $request, array $response): void {
+  public static function handleFailedBatch(array $request, Response $response): void {
     $synced_contacts = [];
 
     foreach ($request['body']['inputs'] as $contact_data) {
@@ -75,12 +83,12 @@ class Sync extends Api4\Generic\AbstractAction {
       $local_contact->id = $contact_data['id'] ?? NULL;
 
       if (isset($local_contact->email)) {
-        $primary_email_owner = HubspotBatchProcessor::getContactByEmail($local_contact->email);
+        $primary_email_owner = HubspotClient::getContactByEmail($local_contact->email);
 
         if (isset($primary_email_owner) && $primary_email_owner->id !== $local_contact->id) {
           if ($local_contact->ownershipScore > $primary_email_owner->ownershipScore) {
             $primary_email_owner->email = '';
-            HubspotBatchProcessor::updateContact($primary_email_owner);
+            HubspotClient::updateContact($primary_email_owner);
           } else {
             $local_contact->email = '';
           }
@@ -88,19 +96,19 @@ class Sync extends Api4\Generic\AbstractAction {
       }
 
       if (empty($local_contact->id)) {
-        $synced_contacts[] = HubspotBatchProcessor::createContact($local_contact);
+        $synced_contacts[] = HubspotClient::createContact($local_contact);
       } else {
-        $synced_contacts[] = HubspotBatchProcessor::updateContact($local_contact);
+        $synced_contacts[] = HubspotClient::updateContact($local_contact);
       }
     }
 
     self::updateSyncTable($synced_contacts);
   }
 
-  public static function handleSuccessfulBatch(array $request, array $response): void {
+  public static function handleSuccessfulBatch(array $request, Response $response): void {
     self::updateSyncTable(array_map(
       fn ($result) => HubspotContact::fromHubspotProperties($result['properties']),
-      $response['body']['results']
+      json_decode((string) $response->getBody(), TRUE)['results']
     ));
   }
 

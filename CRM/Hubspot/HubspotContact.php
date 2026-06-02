@@ -9,6 +9,7 @@ class CRM_Hubspot_HubspotContact {
   public int|null $civicrmID = NULL;
   public string|null $ownedBy = NULL;
   public int|null $ownershipScore = NULL;
+  public array $additionalProps = [];
 
   private static function from(array $contact_data, array $property_mapping): self {
     $contact = new self();
@@ -16,6 +17,10 @@ class CRM_Hubspot_HubspotContact {
     foreach ($contact_data as $key => $value) {
       foreach (array_keys($property_mapping, $key) as $prop) {
         $contact->$prop = $value;
+      }
+
+      if (!in_array($key, $property_mapping)) {
+        $contact->additionalProps[$key] = $value;
       }
     }
 
@@ -47,14 +52,14 @@ class CRM_Hubspot_HubspotContact {
   }
 
   public function toHubspotProperties(): array {
-    return [
+    return array_merge([
       'firstname'       => $this->firstName,
       'lastname'        => $this->lastName,
       'email'           => $this->email,
       'civicrm_id'      => $this->civicrmID,
       'owned_by'        => $this->ownedBy,
       'ownership_score' => $this->ownershipScore,
-    ];
+    ], $this->additionalProps);
   }
 
 }

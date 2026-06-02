@@ -8,6 +8,7 @@ use CRM_Core_DAO;
 use CRM_Hubspot_HubspotBatchProcessor as HubspotBatchProcessor;
 use CRM_Hubspot_HubspotClient as HubspotClient;
 use CRM_Hubspot_HubspotContact as HubspotContact;
+use Exception;
 use GuzzleHttp\Psr7\Response;
 
 /**
@@ -36,6 +37,7 @@ class Sync extends Api4\Generic\AbstractAction {
       ->first();
 
     $contact_sync_query = $hubspot_account['config']['contactSyncQuery'];
+    self::validateSyncQuery($contact_sync_query);
 
     $scheduled_for_create = 0;
     $scheduled_for_update = 0;
@@ -165,6 +167,28 @@ class Sync extends Api4\Generic\AbstractAction {
       $contact_id_offset = $result->last()['id'];
 
       foreach ($result as $contact) yield $contact;
+    }
+  }
+
+  private static function validateSyncQuery(array $sync_query): void {
+    $required_props = [
+      'first_name',
+      'last_name',
+      'email',
+      'hubspot_id',
+      'owned_by',
+      'ownership_score',
+    ];
+
+    foreach ($required_props as $req_prop) {
+      $matching_prop = array_find(
+        $sync_query['select'],
+        fn ($value) => (bool) preg_match("/(^| AS ){$req_prop}$/", $value)
+      );
+
+      if (is_null($matching_prop)) {
+        throw new Exception("Invalid sync query: Missing property '$req_prop' in select clause");
+      }
     }
   }
 

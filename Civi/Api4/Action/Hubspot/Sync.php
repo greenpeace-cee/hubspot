@@ -39,12 +39,18 @@ class Sync extends Api4\Generic\AbstractAction {
     $contact_sync_query = $hubspot_account['config']['contactSyncQuery'];
     self::validateSyncQuery($contact_sync_query);
 
+    $owner_country = Civi::settings()->get('hubspot_sync_owner_country');
+
+    if (empty($owner_country)) {
+      throw new Exception("Missing required setting 'hubspot_sync_owner_country'");
+    }
+
     $scheduled_for_create = 0;
     $scheduled_for_update = 0;
 
     foreach (self::selectContactsForSync($contact_sync_query) as $contact_data) {
       $hubspot_contact = HubspotContact::fromCiviProperties($contact_data);
-      $hubspot_contact->ownedBy = Civi::settings()->get('hubspot_sync_owner_country');
+      $hubspot_contact->ownedBy = $owner_country;
       $hubspot_contact->ownershipScore ??= 0;
 
       if (empty($hubspot_contact->id)) {
@@ -83,6 +89,7 @@ class Sync extends Api4\Generic\AbstractAction {
     foreach ($request['body']['inputs'] as $contact_data) {
       $local_contact = HubspotContact::fromHubspotProperties($contact_data['properties']);
       $local_contact->id = $contact_data['id'] ?? NULL;
+      $owned_by_country = $local_contact->ownedBy;
 
       if (isset($local_contact->email)) {
         $primary_email_owner = HubspotClient::getContactByEmail($local_contact->email);
@@ -93,15 +100,22 @@ class Sync extends Api4\Generic\AbstractAction {
             HubspotClient::updateContact($primary_email_owner);
           } else {
             $local_contact->email = '';
+            $owned_by_country = $primary_email_owner->ownedBy;
           }
         }
       }
 
       if (empty($local_contact->id)) {
-        $synced_contacts[] = HubspotClient::createContact($local_contact);
+        $local_contact = HubspotClient::createContact($local_contact);
       } else {
-        $synced_contacts[] = HubspotClient::updateContact($local_contact);
+        $local_contact = HubspotClient::updateContact($local_contact);
       }
+
+      // Set the owner country *after* the API request since the contact in HubSpot should always be
+      // owned by this Civi instance but the current primary ownership of the email address should
+      // be recorded in the local sync table
+      $local_contact->ownedBy = $owned_by_country;
+      $synced_contacts[] = $local_contact;
     }
 
     self::updateSyncTable($synced_contacts);

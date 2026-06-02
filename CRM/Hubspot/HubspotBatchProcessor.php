@@ -1,7 +1,6 @@
 <?php
 
 use Civi\Api4;
-use CRM_Hubspot_HubspotContact as HubspotContact;
 use GuzzleHttp\Psr7\Response;
 
 class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
@@ -32,8 +31,14 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
     ]);
   }
 
-  public function add(HubspotContact $contact): void {
-    $this->batch[] = $contact;
+  public function add(?string $hubspot_id, array $contact): void {
+    $batch_item = [ 'properties' => $contact ];
+
+    if (isset($hubspot_id)) {
+      $batch_item['id'] = $hubspot_id;
+    }
+
+    $this->batch[] = $batch_item;
 
     if (count($this->batch) < self::BATCH_SIZE) return;
 
@@ -50,12 +55,7 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
         $request = [
           'method' => 'POST',
           'path'   => "/crm/v3/objects/contacts/batch/create",
-          'body'   => [
-            'inputs' => array_map(
-              fn ($contact) => [ 'properties' => $contact->toHubspotProperties() ],
-              $this->batch
-            ),
-          ],
+          'body'   => [ 'inputs' => $this->batch ],
         ];
 
         break;
@@ -65,15 +65,7 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
         $request = [
           'method' => 'POST',
           'path'   => "/crm/v3/objects/contacts/batch/update",
-          'body'   => [
-            'inputs' => array_map(
-              fn ($contact) => [
-                'id' => $contact->id,
-                'properties' => $contact->toHubspotProperties(),
-              ],
-              $this->batch
-            ),
-          ],
+          'body'   => [ 'inputs' => $this->batch ],
         ];
 
         break;
@@ -112,12 +104,12 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
       $response = self::apiClient()->apiRequest($request);
 
       if (in_array($response->getStatusCode(), [200, 201])) {
-        call_user_func($on_success, $request, $response);
+        call_user_func($on_success, $request['body']['inputs'], $response);
       } else {
-        call_user_func($on_failure, $request, $response);
+        call_user_func($on_failure, $request['body']['inputs'], $response);
       }
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
-      call_user_func($on_failure, $request, $exception->getResponse());
+      call_user_func($on_failure, $request['body']['inputs'], $exception->getResponse());
     }
 
     return TRUE;

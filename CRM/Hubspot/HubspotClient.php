@@ -1,7 +1,6 @@
 <?php
 
 use Civi\Api4;
-use CRM_Hubspot_HubspotContact as HubspotContact;
 
 class CRM_Hubspot_HubspotClient {
 
@@ -20,21 +19,17 @@ class CRM_Hubspot_HubspotClient {
     return self::$_apiClient;
   }
 
-  public static function createContact(HubspotContact $contact): HubspotContact {
+  public static function createContact(array $contact_data): array {
     $response = self::apiClient()->apiRequest([
       'method' => 'POST',
       'path'   => "/crm/v3/objects/contacts",
-      'body'   => [
-        'properties' => $contact->toHubspotProperties(),
-      ],
+      'body'   => [ 'properties' => $contact_data ],
     ]);
 
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    return HubspotContact::fromHubspotProperties($response_body['properties']);
+    return json_decode((string) $response->getBody(), TRUE);
   }
 
-  public static function getContactByEmail(string $email): ?HubspotContact {
+  public static function getContactByEmail(string $email): ?array {
     try {
       $response = self::apiClient()->apiRequest([
         'method' => 'GET',
@@ -48,9 +43,7 @@ class CRM_Hubspot_HubspotClient {
         ]),
       ]);
 
-      $response_body = json_decode((string) $response->getBody(), TRUE);
-
-      return HubspotContact::fromHubspotProperties($response_body['properties']);
+      return json_decode((string) $response->getBody(), TRUE);
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
       if ($exception->getResponse()->getStatusCode() === 404) return NULL;
 
@@ -58,18 +51,14 @@ class CRM_Hubspot_HubspotClient {
     }
   }
 
-  public static function updateContact(HubspotContact $contact): HubspotContact {
+  public static function updateContact(string $contact_id, array $contact_data): array {
     $response = self::apiClient()->apiRequest([
       'method' => 'PATCH',
-      'path'   => "/crm/v3/objects/contacts/{$contact->id}",
-      'body'   => [
-        'properties' => $contact->toHubspotProperties(),
-      ],
+      'path'   => "/crm/v3/objects/contacts/$contact_id",
+      'body'   => [ 'properties' => $contact_data ],
     ]);
 
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    return HubspotContact::fromHubspotProperties($response_body['properties']);
+    return json_decode((string) $response->getBody(), TRUE);
   }
 
 }

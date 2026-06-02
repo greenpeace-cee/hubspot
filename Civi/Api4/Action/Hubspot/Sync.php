@@ -7,7 +7,6 @@ use Civi\Api4;
 use CRM_Core_DAO;
 use CRM_Hubspot_HubspotBatchProcessor as HubspotBatchProcessor;
 use CRM_Hubspot_HubspotClient as HubspotClient;
-use CRM_Hubspot_HubspotContact as HubspotContact;
 use Exception;
 use GuzzleHttp\Psr7\Response;
 
@@ -48,16 +47,21 @@ class Sync extends Api4\Generic\AbstractAction {
     $scheduled_for_create = 0;
     $scheduled_for_update = 0;
 
-    foreach (self::selectContactsForSync($contact_sync_query) as $contact_data) {
-      $hubspot_contact = HubspotContact::fromCiviProperties($contact_data);
-      $hubspot_contact->ownedBy = $owner_country;
-      $hubspot_contact->ownershipScore ??= 0;
+    foreach (self::selectContactsForSync($contact_sync_query) as $contact) {
+      $contact['civicrm_id'] = $contact['id'];
+      unset($contact['id']);
 
-      if (empty($hubspot_contact->id)) {
-        $contact_creator->add($hubspot_contact);
+      $hubspot_id = $contact['hubspot_id'];
+      unset($contact['hubspot_id']);
+
+      $contact['owned_by'] = $owner_country;
+      $contact['ownership_score'] ??= 0;
+
+      if (empty($hubspot_id)) {
+        $contact_creator->add(NULL, $contact);
         $scheduled_for_create++;
       } else {
-        $contact_updater->add($hubspot_contact);
+        $contact_updater->add($hubspot_id, $contact);
         $scheduled_for_update++;
       }
     }
@@ -83,69 +87,68 @@ class Sync extends Api4\Generic\AbstractAction {
     return self::$_countryIDs[$iso_code] ?? NULL;
   }
 
-  public static function handleFailedBatch(array $request, Response $response): void {
+  public static function handleFailedBatch(array $batch, Response $response): void {
     $sync_data = [];
 
-    foreach ($request['body']['inputs'] as $contact_data) {
-      $local_contact = HubspotContact::fromHubspotProperties($contact_data['properties']);
-      $local_contact->id = $contact_data['id'] ?? NULL;
-      $owned_by_country = $local_contact->ownedBy;
+    foreach ($batch as $batch_item) {
+      $local_contact_id = $batch_item['id'] ?? NULL;
+      $local_contact = $batch_item['properties'];
+      $owned_by_country = $local_contact['owned_by'];
 
-      if (isset($local_contact->email)) {
-        $primary_email_owner = HubspotClient::getContactByEmail($local_contact->email);
+      if (isset($local_contact['email'])) {
+        $primary_email_owner_result = HubspotClient::getContactByEmail($local_contact['email']);
+        $primary_email_owner_id = $primary_email_owner_result['id'];
+        $primary_email_owner = $primary_email_owner_result['properties'];
 
-        if (isset($primary_email_owner) && $primary_email_owner->id !== $local_contact->id) {
-          if ($local_contact->ownershipScore > $primary_email_owner->ownershipScore) {
-            $primary_email_owner->email = '';
-            HubspotClient::updateContact($primary_email_owner);
+        if (isset($primary_email_owner) && $primary_email_owner_id !== $local_contact_id) {
+          if ($local_contact['ownership_score'] > $primary_email_owner['ownership_score']) {
+            HubspotClient::updateContact($primary_email_owner_id, [ 'email' => '' ]);
           } else {
-            $local_contact->email = '';
-            $owned_by_country = $primary_email_owner->ownedBy;
+            $local_contact['email'] = '';
+            $owned_by_country = $primary_email_owner['owned_by'];
           }
         }
       }
 
-      if (empty($local_contact->id)) {
-        $local_contact = HubspotClient::createContact($local_contact);
+      if (empty($local_contact_id)) {
+        $created_contact = HubspotClient::createContact($local_contact);
+        $local_contact_id = $created_contact['id'];
       } else {
-        $local_contact = HubspotClient::updateContact($local_contact);
+        HubspotClient::updateContact($local_contact_id, $local_contact);
       }
 
-      // Set the owner country *after* the API request since the contact in HubSpot should always be
-      // owned by this Civi instance but the current primary ownership of the email address should
-      // be recorded in the local sync table
       $sync_data[] = [
-        'civicrm_id'      => $local_contact->civicrmID,
-        'hubspot_id'      => $local_contact->id,
+        'civicrm_id'      => $local_contact['civicrm_id'],
+        'hubspot_id'      => $local_contact_id,
         'owned_by'        => $owned_by_country,
-        'ownership_score' => $local_contact->ownershipScore,
-        'request_payload' => $contact_data['properties'],
+        'ownership_score' => $local_contact['ownership_score'],
+        'sync_payload'    => $local_contact,
       ];
     }
 
     self::updateSyncTable($sync_data);
   }
 
-  public static function handleSuccessfulBatch(array $request, Response $response): void {
-    $results = json_decode((string) $response->getBody(), TRUE)['results'];
-    $contacts = [];
+  public static function handleSuccessfulBatch(array $batch, Response $response): void {
     $sync_data = [];
+
+    $results = json_decode((string) $response->getBody(), TRUE)['results'];
+    $hubspot_ids = [];
 
     foreach ($results as $result) {
       $civicrm_id = $result['properties']['civicrm_id'];
-      $contacts[$civicrm_id] = HubspotContact::fromHubspotProperties($result['properties']);
+      $hubspot_ids[$civicrm_id] = $result['id'];
     }
 
-    foreach ($request['body']['inputs'] as $input) {
-      $request_payload = $input['properties'];
-      $contact = $contacts[$request_payload['civicrm_id']];
+    foreach ($batch as $batch_item) {
+      $civicrm_id = $batch_item['properties']['civicrm_id'];
 
       $sync_data[] = [
-        'civicrm_id'      => $contact->civicrmID,
-        'hubspot_id'      => $contact->id,
-        'owned_by'        => $contact->ownedBy,
-        'ownership_score' => $contact->ownershipScore,
-        'request_payload' => $request_payload,
+        'civicrm_id'      => $civicrm_id,
+        'hubspot_id'      => $hubspot_ids[$civicrm_id],
+        'owned_by'        => $batch_item['properties']['owned_by'],
+        'ownership_score' => $batch_item['properties']['ownership_score'],
+        'sync_payload'    => $batch_item['properties'],
       ];
     }
 
@@ -164,11 +167,11 @@ class Sync extends Api4\Generic\AbstractAction {
 
       $rows[] = "(%$i, %$j, 0, %$k, %$l, CURRENT_TIMESTAMP, %$m)";
 
-      $params[$i] = [$record['civicrm_id'],                   'Integer'];
-      $params[$j] = [$record['hubspot_id'],                   'String' ];
-      $params[$k] = [self::countryID($record['owned_by']),    'Integer'];
-      $params[$l] = [$record['ownership_score'],              'Integer'];
-      $params[$m] = [json_encode($record['request_payload']), 'String' ];
+      $params[$i] = [$record['civicrm_id'],                'Integer'];
+      $params[$j] = [$record['hubspot_id'],                'String' ];
+      $params[$k] = [self::countryID($record['owned_by']), 'Integer'];
+      $params[$l] = [$record['ownership_score'],           'Integer'];
+      $params[$m] = [json_encode($record['sync_payload']), 'String' ];
     }
 
     CRM_Core_DAO::executeQuery("
@@ -210,8 +213,8 @@ class Sync extends Api4\Generic\AbstractAction {
 
   private static function validateSyncQuery(array $sync_query): void {
     $required_props = [
-      'first_name',
-      'last_name',
+      'firstname',
+      'lastname',
       'email',
       'hubspot_id',
       'owned_by',

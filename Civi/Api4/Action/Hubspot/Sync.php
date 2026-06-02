@@ -142,14 +142,14 @@ class Sync extends Api4\Generic\AbstractAction {
         ownership_score,
         last_sync_date,
         last_sync_payload
-      ) VALUES " . implode(', ', $rows) . " AS new
+      ) VALUES " . implode(', ', $rows) . "
       ON DUPLICATE KEY UPDATE
-        hubspot_id        = new.hubspot_id,
+        hubspot_id        = VALUES(hubspot_id),
         has_changes       = 0,
-        owned_by          = new.owned_by,
-        ownership_score   = new.ownership_score,
+        owned_by          = VALUES(owned_by),
+        ownership_score   = VALUES(ownership_score),
         last_sync_date    = CURRENT_TIMESTAMP,
-        last_sync_payload = new.last_sync_payload
+        last_sync_payload = VALUES(last_sync_payload)
     ", $params);
   }
 

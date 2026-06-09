@@ -103,7 +103,7 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
     try {
       $response = self::apiClient()->apiRequest($request);
 
-      if (in_array($response->getStatusCode(), [200, 201])) {
+      if (in_array($response->getStatusCode(), [200, 201, 207])) {
         call_user_func($on_success, $request['body']['inputs'], $response);
       } else {
         call_user_func($on_failure, $request['body']['inputs'], $response);

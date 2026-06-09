@@ -132,27 +132,34 @@ class Sync extends Api4\Generic\AbstractAction {
   public static function handleSuccessfulBatch(array $batch, Response $response): void {
     $sync_data = [];
 
-    $results = json_decode((string) $response->getBody(), TRUE)['results'];
-    $hubspot_ids = [];
+    $response_body = json_decode((string) $response->getBody(), TRUE);
+    $results = $response_body['results'];
 
     foreach ($results as $result) {
-      $civicrm_id = $result['properties']['civicrm_id'];
-      $hubspot_ids[$civicrm_id] = $result['id'];
-    }
+      $civicrm_id = (int) $result['properties']['civicrm_id'];
 
-    foreach ($batch as $batch_item) {
-      $civicrm_id = $batch_item['properties']['civicrm_id'];
+      foreach ($batch as $item_index => $batch_item) {
+        if ((int) $batch_item['properties']['civicrm_id'] !== $civicrm_id) continue;
+
+        $sync_payload = $batch_item['properties'];
+        unset($batch[$item_index]);
+        break;
+      }
 
       $sync_data[] = [
         'civicrm_id'      => $civicrm_id,
-        'hubspot_id'      => $hubspot_ids[$civicrm_id],
-        'owned_by'        => $batch_item['properties']['owned_by'],
-        'ownership_score' => $batch_item['properties']['ownership_score'],
-        'sync_payload'    => $batch_item['properties'],
+        'hubspot_id'      => $result['id'],
+        'owned_by'        => $result['properties']['owned_by'],
+        'ownership_score' => $result['properties']['ownership_score'],
+        'sync_payload'    => $sync_payload,
       ];
     }
 
     self::updateSyncTable($sync_data);
+
+    if (!empty($response_body['errors'])) {
+      Civi::log()->error('Some contacts could not be synced', $response_body['errors']);
+    }
   }
 
   private static function updateSyncTable(array $sync_data): void {

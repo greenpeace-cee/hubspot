@@ -91,39 +91,48 @@ class Sync extends Api4\Generic\AbstractAction {
     $sync_data = [];
 
     foreach ($batch as $batch_item) {
-      $local_contact_id = $batch_item['id'] ?? NULL;
-      $local_contact = $batch_item['properties'];
-      $owned_by_country = $local_contact['owned_by'];
+      try {
+        $local_contact_id = $batch_item['id'] ?? NULL;
+        $local_contact = $batch_item['properties'];
+        $owned_by_country = $local_contact['owned_by'];
 
-      if (isset($local_contact['email'])) {
-        $primary_email_owner_result = HubspotClient::getContactByEmail($local_contact['email']);
-        $primary_email_owner_id = $primary_email_owner_result['id'];
-        $primary_email_owner = $primary_email_owner_result['properties'];
+        if (isset($local_contact['email'])) {
+          $primary_email_owner_result = HubspotClient::getContactByEmail($local_contact['email']);
+          $primary_email_owner_id = $primary_email_owner_result['id'];
+          $primary_email_owner = $primary_email_owner_result['properties'];
 
-        if (isset($primary_email_owner) && $primary_email_owner_id !== $local_contact_id) {
-          if ($local_contact['ownership_score'] > $primary_email_owner['ownership_score']) {
-            HubspotClient::updateContact($primary_email_owner_id, [ 'email' => '' ]);
-          } else {
-            $local_contact['email'] = '';
-            $owned_by_country = $primary_email_owner['owned_by'];
+          if (isset($primary_email_owner) && $primary_email_owner_id !== $local_contact_id) {
+            if ($local_contact['ownership_score'] > $primary_email_owner['ownership_score']) {
+              HubspotClient::updateContact($primary_email_owner_id, [ 'email' => '' ]);
+            } else {
+              $local_contact['email'] = '';
+              $owned_by_country = $primary_email_owner['owned_by'];
+            }
           }
         }
-      }
 
-      if (empty($local_contact_id)) {
-        $created_contact = HubspotClient::createContact($local_contact);
-        $local_contact_id = $created_contact['id'];
-      } else {
-        HubspotClient::updateContact($local_contact_id, $local_contact);
-      }
+        if (empty($local_contact_id)) {
+          $created_contact = HubspotClient::createContact($local_contact);
+          $local_contact_id = $created_contact['id'];
+        } else {
+          HubspotClient::updateContact($local_contact_id, $local_contact);
+        }
 
-      $sync_data[] = [
-        'civicrm_id'      => $local_contact['civicrm_id'],
-        'hubspot_id'      => $local_contact_id,
-        'owned_by'        => $owned_by_country,
-        'ownership_score' => $local_contact['ownership_score'],
-        'sync_payload'    => $local_contact,
-      ];
+        $sync_data[] = [
+          'civicrm_id'      => $local_contact['civicrm_id'],
+          'hubspot_id'      => $local_contact_id,
+          'owned_by'        => $owned_by_country,
+          'ownership_score' => $local_contact['ownership_score'],
+          'sync_payload'    => $local_contact,
+        ];
+      } catch (Exception $exception) {
+        Civi::log()->error('Contact could not be synced', [
+          'contact' => $batch_item,
+          'exception' => $exception,
+        ]);
+
+        continue;
+      }
     }
 
     self::updateSyncTable($sync_data);

@@ -69,6 +69,29 @@ return [
     ],
   ],
   [
+    'name' => 'CustomGroup_hubspot_sync_CustomField_email',
+    'entity' => 'CustomField',
+    'cleanup' => 'never',
+    'update' => 'always',
+    'params' => [
+      'version' => 4,
+      'values' => [
+        'custom_group_id.name' => 'hubspot_sync',
+        'name' => 'email',
+        'label' => E::ts('Unique primary email address'),
+        'column_name' => 'email',
+        'data_type' => 'String',
+        'html_type' => 'Text',
+        'text_length' => 255,
+        'is_searchable' => TRUE,
+      ],
+      'match' => [
+        'name',
+        'custom_group_id',
+      ],
+    ],
+  ],
+  [
     'name' => 'CustomGroup_hubspot_sync_CustomField_ownership_score',
     'entity' => 'CustomField',
     'cleanup' => 'never',
@@ -127,6 +150,29 @@ return [
         'data_type' => 'Date',
         'html_type' => 'Select Date',
         'date_format' => 'mm/dd/yy',
+        'is_view' => TRUE,
+      ],
+      'match' => [
+        'name',
+        'custom_group_id',
+      ],
+    ],
+  ],
+  [
+    'name' => 'CustomGroup_hubspot_sync_CustomField_last_sync_failed',
+    'entity' => 'CustomField',
+    'cleanup' => 'never',
+    'update' => 'always',
+    'params' => [
+      'version' => 4,
+      'values' => [
+        'custom_group_id.name' => 'hubspot_sync',
+        'name' => 'last_sync_failed',
+        'label' => E::ts('Did the last sync to HubSpot fail?'),
+        'column_name' => 'last_sync_failed',
+        'data_type' => 'Boolean',
+        'html_type' => 'Toggle',
+        'default_value' => '0',
         'is_view' => TRUE,
       ],
       'match' => [

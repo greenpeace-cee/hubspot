@@ -21,13 +21,13 @@ class Sync extends Api4\Generic\AbstractAction {
     $contact_creator = new HubspotBatchProcessor(
       HubspotBatchProcessor::CREATE_CONTACTS,
       __CLASS__ . '::handleSuccessfulBatch',
-      __CLASS__ . "::handleFailedBatch",
+      __CLASS__ . '::handleFailedBatch',
     );
 
     $contact_updater = new HubspotBatchProcessor(
       HubspotBatchProcessor::UPDATE_CONTACTS,
       __CLASS__ . '::handleSuccessfulBatch',
-      __CLASS__ . "::handleFailedBatch",
+      __CLASS__ . '::handleFailedBatch',
     );
 
     $hubspot_account = Api4\HubspotAccount::get(FALSE)
@@ -94,9 +94,10 @@ class Sync extends Api4\Generic\AbstractAction {
       try {
         $local_contact_id = $batch_item['id'] ?? NULL;
         $local_contact = $batch_item['properties'];
+        $local_contact_email = $local_contact['email'] ?? NULL;
         $owned_by_country = $local_contact['owned_by'];
 
-        if (isset($local_contact['email'])) {
+        if (isset($local_contact_email)) {
           $primary_email_owner_result = HubspotClient::getContactByEmail($local_contact['email']);
           $primary_email_owner_id = $primary_email_owner_result['id'];
           $primary_email_owner = $primary_email_owner_result['properties'];
@@ -119,17 +120,29 @@ class Sync extends Api4\Generic\AbstractAction {
         }
 
         $sync_data[] = [
-          'civicrm_id'      => $local_contact['civicrm_id'],
-          'hubspot_id'      => $local_contact_id,
-          'owned_by'        => $owned_by_country,
-          'ownership_score' => $local_contact['ownership_score'],
-          'sync_payload'    => $local_contact,
+          'entity_id'         => $local_contact['civicrm_id'],
+          'hubspot_id'        => $local_contact_id,
+          'email'             => $local_contact_email,
+          'owned_by'          => $owned_by_country,
+          'ownership_score'   => $local_contact['ownership_score'],
+          'last_sync_failed'  => FALSE,
+          'last_sync_payload' => $local_contact,
         ];
       } catch (Exception $exception) {
         Civi::log()->error('Contact could not be synced', [
-          'contact' => $batch_item,
+          'contact'   => $batch_item,
           'exception' => $exception,
         ]);
+
+        $sync_data[] = [
+          'entity_id'         => $local_contact['civicrm_id'],
+          'hubspot_id'        => $local_contact_id,
+          'email'             => $local_contact_email,
+          'owned_by'          => $owned_by_country,
+          'ownership_score'   => $local_contact['ownership_score'],
+          'last_sync_failed'  => TRUE,
+          'last_sync_payload' => $local_contact,
+        ];
 
         continue;
       }
@@ -156,19 +169,45 @@ class Sync extends Api4\Generic\AbstractAction {
       }
 
       $sync_data[] = [
-        'civicrm_id'      => $civicrm_id,
-        'hubspot_id'      => $result['id'],
-        'owned_by'        => $result['properties']['owned_by'],
-        'ownership_score' => $result['properties']['ownership_score'],
-        'sync_payload'    => $sync_payload,
+        'entity_id'         => $civicrm_id,
+        'hubspot_id'        => $result['id'],
+        'email'             => $result['properties']['email'],
+        'owned_by'          => $result['properties']['owned_by'],
+        'ownership_score'   => $result['properties']['ownership_score'],
+        'last_sync_failed'  => FALSE,
+        'last_sync_payload' => $sync_payload,
       ];
     }
 
-    self::updateSyncTable($sync_data);
-
     if (!empty($response_body['errors'])) {
       Civi::log()->error('Some contacts could not be synced', $response_body['errors']);
+
+      foreach ($response_body['errors'] as $error) {
+        switch ($error['category']) {
+          case 'OBJECT_NOT_FOUND': {
+            foreach ($error['context']['ids'] as $hubspot_id) {
+              $sync_payload = array_reduce($batch,
+                fn ($result, $item) => $item['id'] === $hubspot_id ? $item['properties'] : $result
+              );
+
+              $sync_data[] = [
+                'entity_id'         => $sync_payload['civicrm_id'],
+                'hubspot_id'        => $hubspot_id,
+                'email'             => $sync_payload['email'],
+                'owned_by'          => $sync_payload['owned_by'],
+                'ownership_score'   => $sync_payload['ownership_score'],
+                'last_sync_failed'  => TRUE,
+                'last_sync_payload' => $sync_payload,
+              ];
+            }
+
+            break;
+          }
+        }
+      }
     }
+
+    self::updateSyncTable($sync_data);
   }
 
   private static function updateSyncTable(array $sync_data): void {
@@ -179,15 +218,17 @@ class Sync extends Api4\Generic\AbstractAction {
 
     foreach ($sync_data as $record) {
       $offset = count($params) + 1;
-      list($i, $j, $k, $l, $m) = range($offset, $offset + 5);
+      list($i, $j, $k, $l, $m, $n, $o) = range($offset, $offset + 7);
 
-      $rows[] = "(%$i, %$j, 0, %$k, %$l, CURRENT_TIMESTAMP, %$m)";
+      $rows[] = "(%$i, %$j, 0, NULLIF(%$k, ''), %$l, %$m, CURRENT_TIMESTAMP, %$n, %$o)";
 
-      $params[$i] = [$record['civicrm_id'],                'Integer'];
-      $params[$j] = [$record['hubspot_id'],                'String' ];
-      $params[$k] = [self::countryID($record['owned_by']), 'Integer'];
-      $params[$l] = [$record['ownership_score'],           'Integer'];
-      $params[$m] = [json_encode($record['sync_payload']), 'String' ];
+      $params[$i] = [$record['entity_id'],                      'Integer'];
+      $params[$j] = [$record['hubspot_id'],                     'String' ];
+      $params[$k] = [$record['email'] ?? '',                    'String' ];
+      $params[$l] = [self::countryID($record['owned_by']),      'Integer'];
+      $params[$m] = [$record['ownership_score'],                'Integer'];
+      $params[$n] = [(int) $record['last_sync_failed'],         'Integer'];
+      $params[$o] = [json_encode($record['last_sync_payload']), 'String' ];
     }
 
     CRM_Core_DAO::executeQuery("
@@ -195,17 +236,21 @@ class Sync extends Api4\Generic\AbstractAction {
         entity_id,
         hubspot_id,
         has_changes,
+        email,
         owned_by,
         ownership_score,
         last_sync_date,
+        last_sync_failed,
         last_sync_payload
       ) VALUES " . implode(', ', $rows) . "
       ON DUPLICATE KEY UPDATE
         hubspot_id        = VALUES(hubspot_id),
         has_changes       = 0,
+        email             = VALUES(email),
         owned_by          = VALUES(owned_by),
         ownership_score   = VALUES(ownership_score),
         last_sync_date    = CURRENT_TIMESTAMP,
+        last_sync_failed  = VALUES(last_sync_failed),
         last_sync_payload = VALUES(last_sync_payload)
     ", $params);
   }

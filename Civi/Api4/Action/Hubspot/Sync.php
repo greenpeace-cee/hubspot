@@ -13,7 +13,7 @@ use GuzzleHttp\Psr7\Response;
 /**
  * Sync modified contacts to HubSpot
  */
-class Sync extends Api4\Generic\AbstractAction {
+class Sync extends Api4\Generic\DAOGetAction {
 
   private static array $_countryIDs;
 
@@ -30,14 +30,6 @@ class Sync extends Api4\Generic\AbstractAction {
       __CLASS__ . '::handleFailedBatch',
     );
 
-    $hubspot_account = Api4\HubspotAccount::get(FALSE)
-      ->addSelect('config')
-      ->execute()
-      ->first();
-
-    $contact_sync_query = $hubspot_account['config']['contactSyncQuery'];
-    self::validateSyncQuery($contact_sync_query);
-
     $owner_country = Civi::settings()->get('hubspot_sync_owner_country');
 
     if (empty($owner_country)) {
@@ -47,7 +39,7 @@ class Sync extends Api4\Generic\AbstractAction {
     $scheduled_for_create = 0;
     $scheduled_for_update = 0;
 
-    foreach (self::selectContactsForSync($contact_sync_query) as $contact) {
+    foreach ($this->selectContactsForSync() as $contact) {
       $contact['civicrm_id'] = $contact['id'];
       unset($contact['id']);
 
@@ -255,8 +247,36 @@ class Sync extends Api4\Generic\AbstractAction {
     ", $params);
   }
 
-  private static function selectContactsForSync(array $contact_query) {
-    $contact_query['orderBy'] = [ 'id' => 'ASC' ];
+  private function selectContactsForSync() {
+    $contact_query = [
+      'select'           => $this->select,
+      'where'            => $this->where,
+      'join'             => $this->join,
+      'orderBy'          => [ 'id' => 'ASC' ],
+      'limit'            => 100,
+      'checkPermissions' => FALSE,
+    ];
+
+    $required_props = [
+      'firstname',
+      'lastname',
+      'email',
+      'hubspot_id',
+      'owned_by',
+      'ownership_score',
+    ];
+
+    foreach ($required_props as $req_prop) {
+      $matching_prop = array_find(
+        $contact_query['select'],
+        fn ($value) => (bool) preg_match("/(^| AS ){$req_prop}$/", $value)
+      );
+
+      if (is_null($matching_prop)) {
+        throw new Exception("Invalid sync query: Missing property '$req_prop' in select clause");
+      }
+    }
+
     $contact_id_offset = 0;
 
     while (true) {
@@ -269,28 +289,6 @@ class Sync extends Api4\Generic\AbstractAction {
       $contact_id_offset = $result->last()['id'];
 
       foreach ($result as $contact) yield $contact;
-    }
-  }
-
-  private static function validateSyncQuery(array $sync_query): void {
-    $required_props = [
-      'firstname',
-      'lastname',
-      'email',
-      'hubspot_id',
-      'owned_by',
-      'ownership_score',
-    ];
-
-    foreach ($required_props as $req_prop) {
-      $matching_prop = array_find(
-        $sync_query['select'],
-        fn ($value) => (bool) preg_match("/(^| AS ){$req_prop}$/", $value)
-      );
-
-      if (is_null($matching_prop)) {
-        throw new Exception("Invalid sync query: Missing property '$req_prop' in select clause");
-      }
     }
   }
 

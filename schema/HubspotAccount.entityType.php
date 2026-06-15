@@ -45,15 +45,6 @@ return [
       'input_type' => 'Text',
       'required' => TRUE,
     ],
-    'config' => [
-      'title' => E::ts('Account Configuration'),
-      'description' => E::ts('HubSpot account configuration'),
-      'data_type' => 'Text',
-      'sql_type' => 'text',
-      'input_type' => 'TextArea',
-      'serialize' => CRM_Core_DAO::SERIALIZE_JSON,
-      'required' => FALSE,
-    ],
     'created_date' => [
       'title' => E::ts('Created Date'),
       'description' => E::ts('Date of the account creation'),

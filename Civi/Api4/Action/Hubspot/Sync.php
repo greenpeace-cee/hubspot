@@ -23,14 +23,14 @@ class Sync extends Api4\Generic\DAOGetAction {
   public function _run(Api4\Generic\Result $result) {
     $contact_creator = new HubspotBatchProcessor(
       HubspotBatchProcessor::CREATE_CONTACTS,
-      __CLASS__ . '::onSuccessfulBatch',
-      __CLASS__ . '::onFailedBatch',
+      __CLASS__ . '::onBatchSuccess',
+      __CLASS__ . '::onBatchConflict',
     );
 
     $contact_updater = new HubspotBatchProcessor(
       HubspotBatchProcessor::UPDATE_CONTACTS,
-      __CLASS__ . '::onSuccessfulBatch',
-      __CLASS__ . '::onFailedBatch',
+      __CLASS__ . '::onBatchSuccess',
+      __CLASS__ . '::onBatchConflict',
     );
 
     $result['scheduledForCreate'] = 0;
@@ -72,7 +72,7 @@ class Sync extends Api4\Generic\DAOGetAction {
     return self::$_countryIDs[$iso_code] ?? NULL;
   }
 
-  public static function onFailedBatch(array $batch, Response $_response): void {
+  public static function onBatchConflict(array $batch, Response $_response): void {
     foreach ($batch as $batch_item) {
       $hubspot_id = $batch_item['id'] ?? NULL;
       $civicrm_id = (int) $batch_item['properties']['civicrm_id'];
@@ -123,7 +123,7 @@ class Sync extends Api4\Generic\DAOGetAction {
     }
   }
 
-  public static function onSuccessfulBatch(array $batch, Response $response): void {
+  public static function onBatchSuccess(array $batch, Response $response): void {
     $response_body = json_decode((string) $response->getBody(), TRUE);
 
     foreach ($response_body['results'] as $result_item) {

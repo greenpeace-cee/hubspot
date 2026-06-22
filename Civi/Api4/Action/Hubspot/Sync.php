@@ -44,6 +44,7 @@ class Sync extends Api4\Generic\DAOGetAction {
       unset($contact['hubspot_id']);
 
       $contact['owned_by'] = self::ownerCountry();
+      $contact['unique_civicrm_id'] = $contact['owned_by'] . '-' . $contact['civicrm_id'];
 
       if (empty($hubspot_id)) {
         $contact_creator->add(NULL, $contact);

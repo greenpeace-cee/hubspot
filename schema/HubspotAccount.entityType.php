@@ -37,6 +37,14 @@ return [
       'input_type' => 'Text',
       'required' => TRUE,
     ],
+    'base_uri' => [
+      'title' => E::ts('Base URI'),
+      'description' => E::ts('Base URI for API requests'),
+      'data_type' => 'String',
+      'sql_type' => 'varchar(255)',
+      'input_type' => 'Text',
+      'required' => TRUE,
+    ],
     'api_key' => [
       'title' => E::ts('API Key'),
       'description' => E::ts('HubSpot API key'),

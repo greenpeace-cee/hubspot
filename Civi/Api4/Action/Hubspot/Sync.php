@@ -8,6 +8,7 @@ use CRM_Core_DAO;
 use CRM_Hubspot_HubspotBatchProcessor as HubspotBatchProcessor;
 use CRM_Hubspot_HubspotClient as HubspotClient;
 use Exception;
+use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
 
 /**
@@ -82,7 +83,9 @@ class Sync extends Api4\Generic\DAOGetAction {
       $sync_payload = $batch_item['properties'];
 
       try {
-        $primary_email_owner = empty($email) ? NULL : HubspotClient::getContactByEmail($email);
+        $primary_email_owner = empty($email)
+          ? NULL
+          : HubspotClient::getContactByEmail($email, ['owned_by', 'ownership_score']);
 
         if (isset($primary_email_owner) && $primary_email_owner['id'] != $hubspot_id) {
           $local_contact_score = (int) $batch_item['properties']['ownership_score'];

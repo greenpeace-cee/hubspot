@@ -4,43 +4,34 @@ use Civi\Api4;
 
 class CRM_Hubspot_HubspotClient {
 
-  protected static HubSpot\Discovery\Discovery $_apiClient;
-
-  protected static function apiClient(): HubSpot\Discovery\Discovery {
-    if (!isset(self::$_apiClient)) {
-      $hubspot_account = Api4\HubspotAccount::get(FALSE)
-        ->addSelect('api_key')
-        ->execute()
-        ->first();
-
-      self::$_apiClient = HubSpot\Factory::createWithAccessToken($hubspot_account['api_key']);
-    }
-
-    return self::$_apiClient;
-  }
+  private static array $_config;
 
   public static function createContact(array $contact_data): array {
-    $response = self::apiClient()->apiRequest([
-      'method' => 'POST',
-      'path'   => "/crm/v3/objects/contacts",
-      'body'   => [ 'properties' => $contact_data ],
+    $response = self::request('POST', '/crm/v3/objects/contacts', [
+      'json' => [ 'properties' => $contact_data ],
     ]);
 
     return json_decode((string) $response->getBody(), TRUE);
   }
 
-  public static function getContactByEmail(string $email): ?array {
+  private static function getConfig(): array {
+    if (!isset(self::$_config)) {
+      self::$_config = Api4\HubspotAccount::get(FALSE)
+        ->addSelect('api_key', 'base_uri')
+        ->execute()
+        ->first();
+    }
+
+    return self::$_config;
+  }
+
+  public static function getContactByEmail(string $email, array $props = []): ?array {
     try {
-      $response = self::apiClient()->apiRequest([
-        'method' => 'GET',
-        'path'   => "/crm/v3/objects/contacts/$email?idProperty=email&properties=" . implode(',', [
-          'firstname',
-          'lastname',
-          'email',
-          'civicrm_id',
-          'owned_by',
-          'ownership_score',
-        ]),
+      $response = self::request('GET', "/crm/v3/objects/contacts/$email", [
+        'query' => [
+          'idProperty' => 'email',
+          'properties' => implode(',', $props),
+        ],
       ]);
 
       return json_decode((string) $response->getBody(), TRUE);
@@ -51,11 +42,24 @@ class CRM_Hubspot_HubspotClient {
     }
   }
 
+  public static function request(string $method, string $endpoint, array $options = []): GuzzleHttp\Psr7\Response {
+    $config = self::getConfig();
+    $client = new GuzzleHttp\Client([ 'base_uri' => $config['base_uri'] ]);
+
+    $options = [
+      ...$options,
+      'headers' => [
+        ...($options['headers'] ?? []),
+        'Authorization' => 'Bearer ' . $config['api_key'],
+      ],
+    ];
+
+    return $client->request($method, $endpoint, $options);
+  }
+
   public static function updateContact(string $contact_id, array $contact_data): array {
-    $response = self::apiClient()->apiRequest([
-      'method' => 'PATCH',
-      'path'   => "/crm/v3/objects/contacts/$contact_id",
-      'body'   => [ 'properties' => $contact_data ],
+    $response = self::request('PATCH', "/crm/v3/objects/contacts/$contact_id", [
+      'json' => [ 'properties' => $contact_data ],
     ]);
 
     return json_decode((string) $response->getBody(), TRUE);

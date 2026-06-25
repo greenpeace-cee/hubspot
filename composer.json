@@ -1,7 +1,4 @@
 {
   "name": "greenpeace-cee/hubspot",
-  "type": "civicrm-ext",
-  "require": {
-    "hubspot/api-client": "^14.0"
-  }
+  "type": "civicrm-ext"
 }

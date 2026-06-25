@@ -1,8 +1,5 @@
 <?php
 
-use Civi\Api4;
-use GuzzleHttp\Psr7\Response;
-
 class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
 
   const BATCH_SIZE = 10;
@@ -13,6 +10,7 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
 
   private array $batch = [];
   private int $batchCount = 0;
+  private string $batchEndpoint;
   private string $batchType;
   private string $onConflict;
   private string $onSuccess;
@@ -22,6 +20,11 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
     $this->batchType = $batch_type;
     $this->onSuccess = $on_success;
     $this->onConflict = $on_conflict;
+
+    $this->batchEndpoint = [
+      self::CREATE_CONTACTS => '/crm/v3/objects/contacts/batch/create',
+      self::UPDATE_CONTACTS => '/crm/v3/objects/contacts/batch/update',
+    ][$batch_type] ?? NULL;
 
     $this->queue = Civi::queue('hubspot-sync-' . $batch_type, [
       'type'           => 'SqlParallel',
@@ -52,31 +55,9 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
   private function createQueueTask(array $batch): CRM_Queue_Task {
     $this->batchCount++;
 
-    switch ($this->batchType) {
-      case self::CREATE_CONTACTS: {
-        $request = [
-          'method' => 'POST',
-          'path'   => "/crm/v3/objects/contacts/batch/create",
-          'body'   => [ 'inputs' => $this->batch ],
-        ];
-
-        break;
-      }
-
-      case self::UPDATE_CONTACTS: {
-        $request = [
-          'method' => 'POST',
-          'path'   => "/crm/v3/objects/contacts/batch/update",
-          'body'   => [ 'inputs' => $this->batch ],
-        ];
-
-        break;
-      }
-    }
-
     $queue_task = new CRM_Queue_Task(
        [__CLASS__, 'sendBatchRequest'],
-       [$request, $this->onSuccess, $this->onConflict],
+       [$this->batchEndpoint, $batch, $this->onSuccess, $this->onConflict],
        "Hubspot Sync Batch {$this->batchType}#{$this->batchCount}"
     );
 
@@ -98,18 +79,19 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
 
   public static function sendBatchRequest(
     CRM_Queue_TaskContext $_ctx,
-    array $request,
+    string $endpoint,
+    array $batch,
     string $on_success,
     string $on_conflict
   ): bool {
     try {
-      $response = self::apiClient()->apiRequest($request);
+      $response = self::request('POST', $endpoint, [ 'json' => [ 'inputs' => $batch ] ]);
 
       if (in_array($response->getStatusCode(), [200, 201, 207])) {
-        call_user_func($on_success, $request['body']['inputs'], $response);
+        call_user_func($on_success, $batch, $response);
       } else {
         Civi::log()->error('Received unexpected response status code: ' . $response->getStatusCode(), [
-          'batch'    => $request['body']['inputs'],
+          'request'  => $request,
           'response' => $response,
         ]);
 
@@ -117,10 +99,12 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
       }
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
       $response = $exception->getResponse();
+      $status_code = $response->getStatusCode();
 
-      switch ($response->getStatusCode()) {
-        case 400 /* Bad Request */ : {
-          call_user_func($on_conflict, $request['body']['inputs'], $response);
+      switch ($status_code) {
+        case 400 /* Bad Request */ :
+        case 409 /* Conflict */ : {
+          call_user_func($on_conflict, $batch, $response);
 
           return TRUE;
         }
@@ -133,9 +117,10 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
 
         default: {
           Civi::log()->error('Batch request failed', [
-            'batch'     => $request['body']['inputs'],
-            'response'  => json_decode((string) $response->getBody(), TRUE),
-            'exception' => $exception,
+            'batch'      => $batch,
+            'statusCode' => $status_code,
+            'response'   => json_decode((string) $response->getBody(), TRUE),
+            'exception'  => $exception,
           ]);
 
           return FALSE;

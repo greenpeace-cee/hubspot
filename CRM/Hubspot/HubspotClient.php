@@ -1,10 +1,12 @@
 <?php
 
 use Civi\Api4;
+use GuzzleHttp\HandlerStack;
 
 class CRM_Hubspot_HubspotClient {
 
   private static array $_config;
+  public static HandlerStack $handlerStack;
 
   public static function createContact(array $contact_data): array {
     $response = self::request('POST', '/crm/v3/objects/contacts', [
@@ -44,7 +46,10 @@ class CRM_Hubspot_HubspotClient {
 
   public static function request(string $method, string $endpoint, array $options = []): GuzzleHttp\Psr7\Response {
     $config = self::getConfig();
-    $client = new GuzzleHttp\Client([ 'base_uri' => $config['base_uri'] ]);
+
+    $client = isset(self::$handlerStack)
+      ? new GuzzleHttp\Client([ 'handler' => self::$handlerStack ])
+      : new GuzzleHttp\Client([ 'base_uri' => $config['base_uri'] ]);
 
     $options = [
       ...$options,

@@ -90,7 +90,7 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
       if (in_array($response->getStatusCode(), [200, 201, 207])) {
         call_user_func($on_success, $batch, $response);
       } else {
-        Civi::log()->error('Received unexpected response status code: ' . $response->getStatusCode(), [
+        Civi::log('hubspot-sync')->error('Received unexpected response status code: ' . $response->getStatusCode(), [
           'request'  => $request,
           'response' => $response,
         ]);
@@ -110,13 +110,13 @@ class CRM_Hubspot_HubspotBatchProcessor extends CRM_Hubspot_HubspotClient {
         }
 
         case 429 /* Too Many Requests */ : {
-          Civi::log()->error('Rate limit encountered', [ 'exception' => $exception ]);
+          Civi::log('hubspot-sync')->error('Rate limit encountered', [ 'exception' => $exception ]);
 
           return FALSE;
         }
 
         default: {
-          Civi::log()->error('Batch request failed', [
+          Civi::log('hubspot-sync')->error('Batch request failed', [
             'batch'      => $batch,
             'statusCode' => $status_code,
             'response'   => json_decode((string) $response->getBody(), TRUE),

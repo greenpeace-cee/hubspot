@@ -113,7 +113,7 @@ class Sync extends Api4\Generic\DAOGetAction {
           'last_sync_payload' => $sync_payload,
         ]);
       } catch (Exception $exception) {
-        Civi::log()->error('Contact could not be synced', [
+        Civi::log('hubspot-sync')->error('Contact could not be synced', [
           'contact'   => $batch_item,
           'exception' => $exception,
         ]);
@@ -151,7 +151,7 @@ class Sync extends Api4\Generic\DAOGetAction {
 
     if (!array_key_exists('errors', $response_body)) return;
 
-    Civi::log()->error('Some contacts could not be synced', $response_body['errors']);
+    Civi::log('hubspot-sync')->error('Some contacts could not be synced', $response_body['errors']);
 
     foreach ($response_body['errors'] as $error) {
       switch ($error['category']) {

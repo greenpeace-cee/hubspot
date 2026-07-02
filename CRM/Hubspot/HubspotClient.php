@@ -54,7 +54,37 @@ class CRM_Hubspot_HubspotClient {
       ],
     ];
 
-    return $client->request($method, $endpoint, $options);
+    $response = $client->request($method, $endpoint, $options);
+    $response_body = json_decode((string) $response->getBody(), TRUE);
+
+    $request_data = [
+      'method'   => $method,
+      'endpoint' => $endpoint,
+      'headers'  => $options['headers'],
+    ];
+
+    $request_data['headers']['Authorization'] = 'Bearer *****';
+
+    if (!empty($options['query'])) {
+      $request_data['query_params'] = $options['query'];
+    }
+
+    if (isset($options['json'])) {
+      $request_data['body'] = $options['json'];
+    }
+
+    $response_data = [
+      'status'  => $response->getStatusCode() . ' ' . $response->getReasonPhrase(),
+      'headers' => $response->getHeaders(),
+      'body'    => $response_body,
+    ];
+
+    Civi::log('hubspot-sync')->info("$method {$config['base_uri']}$endpoint", [
+      'request'  => $request_data,
+      'response' => $response_data,
+    ]);
+
+    return $response;
   }
 
   public static function updateContact(string $contact_id, array $contact_data): array {

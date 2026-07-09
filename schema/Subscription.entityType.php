@@ -1,0 +1,70 @@
+<?php
+use CRM_Hubspot_ExtensionUtil as E;
+
+return [
+  'name' => 'Subscription',
+  'table' => 'civicrm_subscription',
+  'class' => 'CRM_Hubspot_DAO_Subscription',
+  'getInfo' => fn() => [
+    'title' => E::ts('Subscription'),
+    'title_plural' => E::ts('Subscriptions'),
+    'description' => E::ts('Email subscriptions for contacts'),
+    'log' => TRUE,
+  ],
+  'getFields' => fn() => [
+    'id' => [
+      'title' => E::ts('ID'),
+      'description' => E::ts('Unique Subscription ID'),
+      'data_type' => 'Int',
+      'sql_type' => 'int unsigned',
+      'input_type' => 'Number',
+      'required' => TRUE,
+      'primary_key' => TRUE,
+      'auto_increment' => TRUE,
+    ],
+    'name' => [
+      'title' => E::ts('Name'),
+      'description' => E::ts('Internal name of the Subscription'),
+      'data_type' => 'String',
+      'sql_type' => 'varchar(127)',
+      'input_type' => 'Text',
+      'required' => TRUE,
+    ],
+    'title' => [
+      'title' => E::ts('Title'),
+      'description' => E::ts('Public title of the Subscription'),
+      'data_type' => 'String',
+      'sql_type' => 'varchar(127)',
+      'input_type' => 'Text',
+      'required' => TRUE,
+    ],
+    'description' => [
+      'title' => E::ts('Description'),
+      'description' => E::ts('Description of the Subscription'),
+      'data_type' => 'Text',
+      'sql_type' => 'text',
+      'input_type' => 'Text',
+      'required' => FALSE,
+    ],
+    'created_date' => [
+      'title' => E::ts('Created Date'),
+      'description' => E::ts('Date of the account creation'),
+      'data_type' => 'Date',
+      'sql_type' => 'datetime',
+      'input_type' => 'Date',
+      'required' => TRUE,
+      'default' => 'CURRENT_TIMESTAMP',
+    ],
+    'modified_date' => [
+      'title' => E::ts('Modified Date'),
+      'description' => E::ts('Date of the last account modification'),
+      'data_type' => 'Date',
+      'sql_type' => 'datetime',
+      'input_type' => 'Date',
+      'required' => TRUE,
+      'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
+    ],
+  ],
+  'getIndices' => fn() => [],
+  'getPaths' => fn() => [],
+];

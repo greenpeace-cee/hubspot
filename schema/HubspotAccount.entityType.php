@@ -53,6 +53,18 @@ return [
       'input_type' => 'Text',
       'required' => TRUE,
     ],
+    'owner_country' => [
+      'title' => E::ts('Owner country'),
+      'description' => E::ts('Determines which country the synced contacts in HubSpot will belong to'),
+      'data_type' => 'Int',
+      'sql_type' => 'int unsigned',
+      'input_type' => 'EntityRef',
+      'entity_reference' => [
+        'entity' => 'Country',
+        'key' => 'id',
+      ],
+      'required' => TRUE,
+    ],
     'created_date' => [
       'title' => E::ts('Created Date'),
       'description' => E::ts('Date of the account creation'),

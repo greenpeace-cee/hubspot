@@ -44,15 +44,6 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
     $handler_stack->push($history_mw);
     CRM_Hubspot_HubspotClient::$handlerStack = $handler_stack;
 
-    Api4\HubspotAccount::create(FALSE)
-      ->addValue('account_id', 19946500)
-      ->addValue('name', 'Test account GPCEE')
-      ->addValue('base_uri', 'https://api.hubapi.com')
-      ->addValue('api_key', 'pat-abc-00000000-1111-2222-3333-444444444444')
-      ->execute();
-
-    Civi::settings()->set('hubspot_sync_owner_country', self::OWNER_COUNTRY);
-
     self::$countryIds = array_map(
       fn ($country) => $country['id'],
       (array) Api4\Country::get(TRUE)
@@ -61,6 +52,14 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
         ->execute()
         ->indexBy('iso_code')
     );
+
+    Api4\HubspotAccount::create(FALSE)
+      ->addValue('account_id', 19946500)
+      ->addValue('name', 'Test account GPCEE')
+      ->addValue('base_uri', 'https://api.hubapi.com')
+      ->addValue('api_key', 'pat-abc-00000000-1111-2222-3333-444444444444')
+      ->addValue('owner_country', self::$countryIds[self::OWNER_COUNTRY])
+      ->execute();
 
     for ($i = 0; $i < 10; $i++) {
       $this->contactIds[] = Api4\Contact::create(FALSE)

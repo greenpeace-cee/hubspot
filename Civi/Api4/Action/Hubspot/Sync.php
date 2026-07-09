@@ -175,7 +175,10 @@ class Sync extends Api4\Generic\DAOGetAction {
   }
 
   private static function ownerCountry(): string {
-    self::$_ownerCountry ??= Civi::settings()->get('hubspot_sync_owner_country');
+    self::$_ownerCountry ??= Api4\HubspotAccount::get(FALSE)
+      ->addSelect('owner_country.iso_code')
+      ->execute()
+      ->first()['owner_country.iso_code'];
 
     if (empty(self::$_ownerCountry)) {
       throw new Exception("Missing required setting 'hubspot_sync_owner_country'");

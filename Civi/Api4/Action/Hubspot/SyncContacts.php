@@ -2,37 +2,23 @@
 
 namespace Civi\Api4\Action\Hubspot;
 
-use Civi;
 use Civi\Api4;
-use CRM_Core_DAO;
-use CRM_Hubspot_HubspotBatchProcessor as HubspotBatchProcessor;
-use CRM_Hubspot_HubspotClient as HubspotClient;
+use CRM_Hubspot_BatchContactCreator as BatchContactCreator;
+use CRM_Hubspot_BatchContactUpdater as BatchContactUpdater;
 use Exception;
-use GuzzleHttp\Psr7\Request;
-use GuzzleHttp\Psr7\Response;
+use Generator;
 
 /**
  * Sync modified contacts to HubSpot
  */
 class SyncContacts extends Api4\Generic\DAOGetAction {
 
-  const SYNC_TABLE = 'civicrm_value_hubspot_sync';
-
-  private static array $_countryIDs;
-  private static string $_ownerCountry;
+  use \CRM_Hubspot_CountryIsoResolverTrait;
+  use \CRM_Hubspot_LoadHubspotAccountTrait;
 
   public function _run(Api4\Generic\Result $result) {
-    $contact_creator = new HubspotBatchProcessor(
-      HubspotBatchProcessor::CREATE_CONTACTS,
-      __CLASS__ . '::onBatchSuccess',
-      __CLASS__ . '::onBatchConflict',
-    );
-
-    $contact_updater = new HubspotBatchProcessor(
-      HubspotBatchProcessor::UPDATE_CONTACTS,
-      __CLASS__ . '::onBatchSuccess',
-      __CLASS__ . '::onBatchConflict',
-    );
+    $contact_creator = new BatchContactCreator([ 'queue_name' => 'hubspot-sync-create-contacts' ]);
+    $contact_updater = new BatchContactUpdater([ 'queue_name' => 'hubspot-sync-update-contacts' ]);
 
     $result['scheduledForCreate'] = 0;
     $result['scheduledForUpdate'] = 0;
@@ -44,14 +30,18 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
       $hubspot_id = $contact['hubspot_id'];
       unset($contact['hubspot_id']);
 
-      $contact['owned_by'] = self::ownerCountry();
+      $contact['owned_by'] = self::getIsoCode(self::hubspotAccount()['owner_country']);
       $contact['unique_civicrm_id'] = $contact['owned_by'] . '-' . $contact['civicrm_id'];
 
       if (empty($hubspot_id)) {
-        $contact_creator->add(NULL, $contact);
+        $contact_creator->add([ 'properties' => $contact ]);
         $result['scheduledForCreate']++;
       } else {
-        $contact_updater->add($hubspot_id, $contact);
+        $contact_updater->add([
+          'id'         => $hubspot_id,
+          'properties' => $contact,
+        ]);
+        
         $result['scheduledForUpdate']++;
       }
     }
@@ -60,134 +50,7 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
     $contact_updater->flush();
   }
 
-  private static function countryID(string $iso_code): ?int {
-    if (empty(self::$_countryIDs)) {
-      $result = Api4\Country::get(FALSE)
-        ->addSelect('id', 'iso_code')
-        ->addWhere('iso_code', 'IN', ['AT', 'BG', 'HR', 'HU', 'PL', 'RO', 'SI', 'SK', 'UA'])
-        ->execute()
-        ->indexBy('iso_code');
-
-      self::$_countryIDs = array_map(fn ($country) => $country['id'], (array) $result);
-    }
-
-    return self::$_countryIDs[$iso_code] ?? NULL;
-  }
-
-  public static function onBatchConflict(array $batch, Response $_response): void {
-    foreach ($batch as $batch_item) {
-      $hubspot_id = $batch_item['id'] ?? NULL;
-      $civicrm_id = (int) $batch_item['properties']['civicrm_id'];
-      $email = $batch_item['properties']['email'] ?? NULL;
-      $owned_by = self::ownerCountry();
-      $sync_payload = $batch_item['properties'];
-
-      try {
-        $primary_email_owner = empty($email)
-          ? NULL
-          : HubspotClient::getContactByEmail($email, ['owned_by', 'ownership_score']);
-
-        if (isset($primary_email_owner) && $primary_email_owner['id'] != $hubspot_id) {
-          $local_contact_score = (int) $batch_item['properties']['ownership_score'];
-          $primary_owner_score = (int) $primary_email_owner['properties']['ownership_score'];
-
-          if ($local_contact_score > $primary_owner_score) {
-            HubspotClient::updateContact($primary_email_owner['id'], [ 'email' => '' ]);
-          } else {
-            unset($sync_payload['email']);
-            $owned_by = $primary_email_owner['properties']['owned_by'];
-          }
-        }
-
-        if (empty($hubspot_id)) {
-          $hubspot_id = HubspotClient::createContact($sync_payload)['id'];
-        } else {
-          HubspotClient::updateContact($hubspot_id, $sync_payload);
-        }
-
-        self::updateSyncRecord([
-          'entity_id'         => $civicrm_id,
-          'hubspot_id'        => $hubspot_id,
-          'owned_by'          => $owned_by,
-          'last_sync_failed'  => FALSE,
-          'last_sync_payload' => $sync_payload,
-        ]);
-      } catch (Exception $exception) {
-        Civi::log('hubspot-sync')->error('Contact could not be synced', [
-          'contact'   => $batch_item,
-          'exception' => $exception,
-        ]);
-
-        self::updateSyncRecord([
-          'entity_id'         => $civicrm_id,
-          'last_sync_failed'  => TRUE,
-          'last_sync_payload' => $sync_payload,
-        ]);
-      }
-    }
-  }
-
-  public static function onBatchSuccess(array $batch, Response $response): void {
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    foreach ($response_body['results'] as $result_item) {
-      $hubspot_id = $result_item['id'];
-
-      $sync_payload = array_reduce($batch,
-        fn ($result, $item) =>
-          (int) $item['properties']['civicrm_id'] === (int) $result_item['properties']['civicrm_id']
-          ? $item['properties']
-          : $result
-      );
-
-      self::updateSyncRecord([
-        'entity_id'         => $result_item['properties']['civicrm_id'],
-        'hubspot_id'        => $hubspot_id,
-        'owned_by'          => self::ownerCountry(),
-        'last_sync_failed'  => FALSE,
-        'last_sync_payload' => $sync_payload,
-      ]);
-    }
-
-    if (!array_key_exists('errors', $response_body)) return;
-
-    Civi::log('hubspot-sync')->error('Some contacts could not be synced', $response_body['errors']);
-
-    foreach ($response_body['errors'] as $error) {
-      switch ($error['category']) {
-        case 'OBJECT_NOT_FOUND': {
-          foreach ($error['context']['ids'] as $hubspot_id) {
-            $sync_payload = array_reduce($batch,
-              fn ($result, $item) => $item['id'] === $hubspot_id ? $item['properties'] : $result
-            );
-
-            self::updateSyncRecord([
-              'entity_id'         => $sync_payload['civicrm_id'],
-              'last_sync_failed'  => TRUE,
-              'last_sync_payload' => $sync_payload,
-            ]);
-          }
-
-          break;
-        }
-      }
-    }
-  }
-
-  private static function ownerCountry(): string {
-    self::$_ownerCountry ??= Api4\HubspotAccount::get(FALSE)
-      ->addSelect('owner_country.iso_code')
-      ->execute()
-      ->first()['owner_country.iso_code'];
-
-    if (empty(self::$_ownerCountry)) {
-      throw new Exception("Missing required setting 'hubspot_sync_owner_country'");
-    }
-
-    return self::$_ownerCountry;
-  }
-
-  private function selectContactsForSync() {
+  private function selectContactsForSync(): Generator {
     $contact_query = [
       'select'           => $this->select,
       'where'            => $this->where,
@@ -219,53 +82,6 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
 
       foreach ($result as $contact) yield $contact;
     }
-  }
-
-  private static function updateSyncRecord(array $record): void {
-    $assignments = [
-      'has_changes = 0',
-      'last_sync_date = CURRENT_TIMESTAMP',
-    ];
-
-    $params = [];
-    $i = 0;
-
-    foreach ($record as $column => $value) {
-      $i++;
-
-      switch ($column) {
-        case 'hubspot_id': {
-          $assignments[] = "hubspot_id = NULLIF(%$i, '')";
-          $params[$i] = [$value ?? '', 'String'];
-          break;
-        }
-
-        case 'owned_by': {
-          $assignments[] = "owned_by = NULLIF(%$i, 0)";
-          $params[$i] = [self::countryID($value) ?? 0, 'Integer'];
-          break;
-        }
-
-        case 'last_sync_failed': {
-          $assignments[] = "last_sync_failed = %$i";
-          $params[$i] = [(int) $value, 'Integer'];
-          break;
-        }
-
-        case 'last_sync_payload': {
-          $assignments[] = "last_sync_payload = NULLIF(%$i, '')";
-          $params[$i] = [empty($value) ? '' : json_encode($value), 'String'];
-          break;
-        }
-      }
-    }
-
-    CRM_Core_DAO::executeQuery(
-      "UPDATE " . self::SYNC_TABLE .
-      " SET " . implode(', ', $assignments) .
-      " WHERE entity_id = " . (int) $record['entity_id'],
-      $params
-    );
   }
 
 }

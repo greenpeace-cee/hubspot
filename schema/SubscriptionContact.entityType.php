@@ -1,4 +1,5 @@
 <?php
+
 use CRM_Hubspot_ExtensionUtil as E;
 
 return [
@@ -59,18 +60,16 @@ return [
     ],
     'created_date' => [
       'title' => E::ts('Created Date'),
-      'description' => E::ts('Date of the account creation'),
-      'data_type' => 'Date',
-      'sql_type' => 'datetime',
+      'description' => E::ts('Date of creation'),
+      'sql_type' => 'timestamp',
       'input_type' => 'Date',
       'required' => TRUE,
       'default' => 'CURRENT_TIMESTAMP',
     ],
     'modified_date' => [
       'title' => E::ts('Modified Date'),
-      'description' => E::ts('Date of the last account modification'),
-      'data_type' => 'Date',
-      'sql_type' => 'datetime',
+      'description' => E::ts('Date of last modification'),
+      'sql_type' => 'timestamp',
       'input_type' => 'Date',
       'required' => TRUE,
       'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',

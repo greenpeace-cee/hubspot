@@ -3,85 +3,27 @@
 declare(strict_types = 1);
 namespace Civi\Api4\Action\Hubspot;
 
-use Civi;
 use Civi\Api4;
-use Civi\Test;
-use Civi\Test\CiviEnvBuilder;
-use Civi\Test\HeadlessInterface;
-use Civi\Test\HookInterface;
-use Civi\Test\TransactionalInterface;
-use CRM_Core_DAO;
-use CRM_Hubspot_HubspotClient;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\HandlerStack;
-use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
-use PHPUnit\Framework\TestCase;
 
 /**
  * @group headless
  */
-class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
-
-  const OWNER_COUNTRY = 'AT';
-
-  private array $contactIds = [];
-  private static array $countryIds = [];
-  private array $historyContainer = [];
-  private MockHandler $mockHandler;
-
-  public function setUpHeadless(): CiviEnvBuilder {
-    return Test::headless()
-      ->installMe(__DIR__)
-      ->apply(TRUE);
-  }
+class SyncContactsTest extends TestBase {
 
   public function setUp(): void {
-    $this->mockHandler = new MockHandler();
-    $history_mw = Middleware::history($this->historyContainer);
-
-    $handler_stack = HandlerStack::create($this->mockHandler);
-    $handler_stack->push($history_mw);
-    CRM_Hubspot_HubspotClient::$handlerStack = $handler_stack;
-
-    self::$countryIds = array_map(
-      fn ($country) => $country['id'],
-      (array) Api4\Country::get(TRUE)
-        ->addSelect('iso_code')
-        ->addWhere('iso_code', 'IN', ['AT', 'BG', 'HR', 'HU', 'PL', 'RO', 'SI', 'SK', 'UA'])
-        ->execute()
-        ->indexBy('iso_code')
-    );
-
-    Api4\HubspotAccount::create(FALSE)
-      ->addValue('account_id', 19946500)
-      ->addValue('name', 'Test account GPCEE')
-      ->addValue('base_uri', 'https://api.hubapi.com')
-      ->addValue('api_key', 'pat-abc-00000000-1111-2222-3333-444444444444')
-      ->addValue('owner_country', self::$countryIds[self::OWNER_COUNTRY])
-      ->execute();
-
-    for ($i = 0; $i < 10; $i++) {
-      $this->contactIds[] = Api4\Contact::create(FALSE)
-        ->addValue('contact_type', 'Individual')
-        ->addValue('first_name', 'Contact')
-        ->addValue('last_name', "#$i")
-        ->addValue('birth_date', date('Y-m-d', random_int(0, pow(10, 9))))
-        ->addValue('hubspot_sync.email', "contact-$i@example.org")
-        ->addValue('hubspot_sync.owned_by:abbr', self::OWNER_COUNTRY)
-        ->execute()
-        ->first()['id'];
+    foreach (self::loadAllContacts(['id']) as $contact) {
+      Api4\Contact::update(FALSE)
+        ->addValue('hubspot_sync.hubspot_id',        NULL)
+        ->addValue('hubspot_sync.has_changes',       FALSE)
+        ->addValue('hubspot_sync.ownership_score',   0)
+        ->addValue('hubspot_sync.owned_by:abbr',     self::OWNER_COUNTRY)
+        ->addValue('hubspot_sync.last_sync_date',    NULL)
+        ->addValue('hubspot_sync.last_sync_failed',  FALSE)
+        ->addValue('hubspot_sync.last_sync_payload', NULL)
+        ->addWhere('id', '=', $contact['id'])
+        ->execute();
     }
-
-    parent::setUp();
-  }
-
-  public function tearDown(): void {
-    parent::tearDown();
-  }
-
-  private static function generateHubspotId(): string {
-    return (string) random_int(pow(10, 9), pow(10, 12));
   }
 
   private static function mapToHubspotProps(array $contact): array {
@@ -89,72 +31,20 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       'firstname'         => $contact['first_name'],
       'lastname'          => $contact['last_name'],
       'date_of_birth'     => $contact['birth_date'],
-      'email'             => $contact['email'],
+      'email'             => $contact['hubspot_sync.email'],
       'civicrm_id'        => $contact['id'],
       'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
-      'owned_by'          => $contact['owned_by'],
-      'ownership_score'   => $contact['ownership_score'],
+      'owned_by'          => self::getIsoCode($contact['hubspot_sync.owned_by']),
+      'ownership_score'   => $contact['hubspot_sync.ownership_score'],
     ];
   }
 
-  private function processQueueItems(string $queue_name, string $expected_outcome = 'ok'): void {
-    $queue_result = Api4\Queue::runItems(FALSE)
-      ->setQueue($queue_name)
-      ->execute()
-      ->first();
-
-    $this->assertEquals($expected_outcome, $queue_result['outcome'], "The outcome of the queue runner should be '$expected_outcome'");
-
-    if ($expected_outcome === 'ok') {
-      $queue_items = (array) Api4\QueueItem::get(FALSE)
-        ->addWhere('queue_name', '=', $queue_name)
-        ->execute();
-
-      $this->assertEmpty($queue_items, 'All queue items should have been processed');
-    }
-  }
-
-  private function queryContacts(array $contact_ids = NULL): array {
-    $contact_ids ??= $this->contactIds;
-
-    return array_map(
-      fn ($contact) => [
-        'id'                => $contact['id'],
-        'first_name'        => $contact['first_name'],
-        'last_name'         => $contact['last_name'],
-        'birth_date'        => $contact['birth_date'],
-        'email'             => $contact['hubspot_sync.email'],
-        'hubspot_id'        => $contact['hubspot_sync.hubspot_id'],
-        'has_changes'       => $contact['hubspot_sync.has_changes'],
-        'owned_by'          => array_search($contact['hubspot_sync.owned_by'], self::$countryIds),
-        'ownership_score'   => $contact['hubspot_sync.ownership_score'],
-        'last_sync_date'    => $contact['hubspot_sync.last_sync_date'],
-        'last_sync_failed'  => $contact['hubspot_sync.last_sync_failed'],
-        'last_sync_payload' => $contact['hubspot_sync.last_sync_payload'],
-      ],
-      (array) Api4\Contact::get(FALSE)
-        ->addSelect('*', 'hubspot_sync.*')
-        ->addWhere('id', 'IN', $contact_ids)
-        ->execute()
-    );
-  }
-
   public function testInitialSync(): void {
-    $contacts = $this->queryContacts();
+    $contacts = self::loadAllContacts(['*', 'hubspot_sync.*']);
 
-    $this->mockHandler->append(new Response(
-      201,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'results' => array_map(
-          fn ($contact) => [
-            'id' => self::generateHubspotId(),
-            'properties' => self::mapToHubspotProps($contact),
-          ],
-          $contacts
-        ),
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchCreateContacts(201, [
+      'contacts' => array_map('self::mapToHubspotProps', $contacts),
+    ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -179,9 +69,13 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
 
     $this->processQueueItems('hubspot-sync-create-contacts');
 
-    $request = array_shift($this->historyContainer)['request'];
+    $request = self::shiftHistory()['request'];
 
-    $this->assertEquals('POST', $request->getMethod(), 'Should have sent a POST request to the HubSpot API');
+    $this->assertEquals(
+      'POST',
+      $request->getMethod(),
+      'Should have sent a POST request to the HubSpot API'
+    );
 
     $this->assertEquals(
       '/crm/v3/objects/contacts/batch/create',
@@ -190,40 +84,74 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
     );
 
     $this->assertEquals(
-      [ 'inputs' => array_map(fn ($contact) => [ 'properties' => self::mapToHubspotProps($contact) ], $contacts) ],
+      [
+        'inputs' => array_map(
+          fn ($contact) => [ 'properties' => self::mapToHubspotProps($contact) ],
+          $contacts
+        )
+      ],
       json_decode((string) $request->getBody(), TRUE),
       'Should have sent the expected payload to the HubSpot API'
     );
 
-    foreach ($this->queryContacts() as $contact) {
-      $this->assertIsNumeric($contact['hubspot_id'], 'The returned HubSpot contact ID should have been saved');
-      $this->assertFalse($contact['has_changes'], 'The "has_changes" flag should have been reset');
-      $this->assertEquals(self::OWNER_COUNTRY, $contact['owned_by'], 'The contact should be owned by ' . self::OWNER_COUNTRY);
-      $this->assertEquals(0, $contact['ownership_score'], 'The initial ownership score should be 0');
-      $this->assertEqualsWithDelta(time(), strtotime($contact['last_sync_date']), 24 * 60 * 60, 'The timestamp of the last sync should have been updated');
-      $this->assertFalse($contact['last_sync_failed'], 'The "last_sync_failed" flag should be set to FALSE');
+    foreach (self::loadAllContacts(['*', 'hubspot_sync.*']) as $contact) {
+      $this->assertIsNumeric(
+        $contact['hubspot_sync.hubspot_id'],
+        'The returned HubSpot contact ID should have been saved'
+      );
+
+      $this->assertFalse(
+        $contact['hubspot_sync.has_changes'],
+        'The "has_changes" flag should have been reset'
+      );
+
+      $this->assertEquals(
+        self::OWNER_COUNTRY,
+        self::getIsoCode($contact['hubspot_sync.owned_by']),
+        'The contact should be owned by ' . self::OWNER_COUNTRY
+      );
+
+      $this->assertEquals(
+        0,
+        $contact['hubspot_sync.ownership_score'],
+        'The initial ownership score should be 0'
+      );
+
+      $this->assertEqualsWithDelta(
+        time(),
+        strtotime($contact['hubspot_sync.last_sync_date']),
+        24 * 60 * 60,
+        'The timestamp of the last sync should have been updated'
+      );
+
+      $this->assertFalse(
+        $contact['hubspot_sync.last_sync_failed'],
+        'The "last_sync_failed" flag should be set to FALSE'
+      );
 
       $this->assertEquals(
         [
           'firstname'         => $contact['first_name'],
           'lastname'          => $contact['last_name'],
           'date_of_birth'     => $contact['birth_date'],
-          'email'             => $contact['email'],
+          'email'             => $contact['hubspot_sync.email'],
           'owned_by'          => self::OWNER_COUNTRY,
-          'ownership_score'   => $contact['ownership_score'],
+          'ownership_score'   => $contact['hubspot_sync.ownership_score'],
           'civicrm_id'        => $contact['id'],
           'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
         ],
-        json_decode($contact['last_sync_payload'], TRUE),
+        json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
         'The payload of the latest sync should contain the expected values'
       );
     }
   }
 
   public function testSuccessfulUpdate(): void {
-    foreach ($this->contactIds as $contact_id) {
+    $contact_ids = array_map(fn ($contact) => (int) $contact['id'], self::loadAllContacts(['id']));
+
+    foreach ($contact_ids as $contact_id) {
       Api4\Contact::update(FALSE)
-        ->addValue('hubspot_sync.hubspot_id', self::generateHubspotId())
+        ->addValue('hubspot_sync.hubspot_id', MockResponses::generateHubspotId())
         ->addValue('hubspot_sync.has_changes', TRUE)
         ->addValue('hubspot_sync.ownership_score', 10)
         ->addValue('hubspot_sync.last_sync_date', date('Y-m-d H:i:s', strtotime('last week')))
@@ -231,21 +159,12 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
         ->execute();
     }
 
-    $contacts = $this->queryContacts();
+    $contacts = self::loadAllContacts(['*', 'hubspot_sync.*']);
 
-    $this->mockHandler->append(new Response(
-      200,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'results' => array_map(
-          fn ($contact) => [
-            'id' => $contact['hubspot_id'],
-            'properties' => self::mapToHubspotProps($contact),
-          ],
-          $this->queryContacts()
-        ),
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchUpdateContacts(200, [
+      'ids'        => array_map(fn ($contact) => $contact['hubspot_sync.hubspot_id'], $contacts),
+      'properties' => array_map('self::mapToHubspotProps', $contacts),
+    ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -270,9 +189,13 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
 
     $this->processQueueItems('hubspot-sync-update-contacts');
 
-    $request = array_shift($this->historyContainer)['request'];
+    $request = self::shiftHistory()['request'];
 
-    $this->assertEquals('POST', $request->getMethod(), 'Should have sent a POST request to the HubSpot API');
+    $this->assertEquals(
+      'POST',
+      $request->getMethod(),
+      'Should have sent a POST request to the HubSpot API'
+    );
 
     $this->assertEquals(
       '/crm/v3/objects/contacts/batch/update',
@@ -283,7 +206,7 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
     $this->assertEquals(
       [
         'inputs' => array_map(fn ($contact) => [
-          'id'         => $contact['hubspot_id'],
+          'id'         => $contact['hubspot_sync.hubspot_id'],
           'properties' => self::mapToHubspotProps($contact),
         ], $contacts),
       ],
@@ -291,72 +214,78 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       'Should have sent the expected payload to the HubSpot API'
     );
 
-    foreach ($this->queryContacts() as $contact) {
-      $this->assertFalse($contact['has_changes'], 'The "has_changes" flag should have been reset');
-      $this->assertEquals(self::OWNER_COUNTRY, $contact['owned_by'], 'The contact should still be owned by ' . self::OWNER_COUNTRY);
-      $this->assertEquals(10, $contact['ownership_score'], 'The ownership score should have been updated');
-      $this->assertEqualsWithDelta(time(), strtotime($contact['last_sync_date']), 24 * 60 * 60, 'The timestamp of the last sync should have been updated');
-      $this->assertFalse($contact['last_sync_failed'], 'The "last_sync_failed" flag should be set to FALSE');
+    foreach (self::loadAllContacts(['*', 'hubspot_sync.*']) as $contact) {
+      $this->assertFalse(
+        $contact['hubspot_sync.has_changes'],
+        'The "has_changes" flag should have been reset'
+      );
+
+      $this->assertEquals(
+        self::OWNER_COUNTRY,
+        self::getIsoCode($contact['hubspot_sync.owned_by']),
+        'The contact should still be owned by ' . self::OWNER_COUNTRY
+      );
+
+      $this->assertEquals(
+        10,
+        $contact['hubspot_sync.ownership_score'],
+        'The ownership score should have been updated'
+      );
+
+      $this->assertEqualsWithDelta(
+        time(),
+        strtotime($contact['hubspot_sync.last_sync_date']),
+        24 * 60 * 60,
+        'The timestamp of the last sync should have been updated'
+      );
+
+      $this->assertFalse(
+        $contact['hubspot_sync.last_sync_failed'],
+        'The "last_sync_failed" flag should be set to FALSE'
+      );
 
       $this->assertEquals(
         [
           'firstname'         => $contact['first_name'],
           'lastname'          => $contact['last_name'],
           'date_of_birth'     => $contact['birth_date'],
-          'email'             => $contact['email'],
+          'email'             => $contact['hubspot_sync.email'],
           'owned_by'          => self::OWNER_COUNTRY,
-          'ownership_score'   => $contact['ownership_score'],
+          'ownership_score'   => $contact['hubspot_sync.ownership_score'],
           'civicrm_id'        => $contact['id'],
           'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
         ],
-        json_decode($contact['last_sync_payload'], TRUE),
+        json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
         'The payload of the latest sync should contain the expected values'
       );
     }
   }
 
   public function testEmailConflict_YieldWithLowerScore(): void {
-    $contact_id = $this->contactIds[0];
-    $contact = $this->queryContacts([$contact_id])[0];
-    $hubspot_id = self::generateHubspotId();
+    $contact = self::loadAllContacts(['*', 'hubspot_sync.*'])[0];
+    $contact_id = (int) $contact['id'];
+    $hubspot_id = MockResponses::generateHubspotId();
 
-    $this->mockHandler->append(new Response(
-      400,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'status'   => 'error',
-        'message'  => '...',
-        'category' => 'VALIDATION_ERROR',
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchCreateContacts(400));
 
-    $this->mockHandler->append(new Response(
-      200,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'id' => self::generateHubspotId(),
-        'properties' => [
-          'email'           => $contact['email'],
-          'owned_by'        => 'BG',
-          'ownership_score' => 50,
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::getContactByEmail(200, [
+      'id' => MockResponses::generateHubspotId(),
+      'properties' => [
+        'email'           => $contact['hubspot_sync.email'],
+        'owned_by'        => 'BG',
+        'ownership_score' => 50,
+      ],
+    ]));
 
-    $this->mockHandler->append(new Response(
-      201,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'id' => $hubspot_id,
-        'properties' => [
-          'civicrm_id'        => $contact_id,
-          'email'             => $contact['email'],
-          'owned_by'          => 'AT',
-          'ownership_score'   => 0,
-          'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::createContact(201, [
+      'id' => $hubspot_id,
+      'properties' => [
+        'civicrm_id'        => $contact_id,
+        'owned_by'          => 'AT',
+        'ownership_score'   => 0,
+        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
+      ],
+    ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -378,19 +307,27 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
 
     $this->processQueueItems('hubspot-sync-create-contacts');
 
-    $get_primary_email_owner_req = $this->historyContainer[1]['request'];
-
-    $this->assertEquals('GET', $get_primary_email_owner_req->getMethod(), 'Should have sent a GET request to the HubSpot API');
+    $get_primary_email_owner_req = self::shiftHistory(2)['request'];
 
     $this->assertEquals(
-      "/crm/v3/objects/contacts/{$contact['email']}",
+      'GET',
+      $get_primary_email_owner_req->getMethod(),
+      'Should have sent a GET request to the HubSpot API'
+    );
+
+    $this->assertEquals(
+      "/crm/v3/objects/contacts/{$contact['hubspot_sync.email']}",
       $get_primary_email_owner_req->getUri()->getPath(),
       'Should have sent a request to the HubSpot API get contact endpoint'
     );
 
-    $create_contact_req = $this->historyContainer[2]['request'];
+    $create_contact_req = self::shiftHistory()['request'];
 
-    $this->assertEquals('POST', $create_contact_req->getMethod(), 'Should have sent a POST request to the HubSpot API');
+    $this->assertEquals(
+      'POST',
+      $create_contact_req->getMethod(),
+      'Should have sent a POST request to the HubSpot API'
+    );
 
     $this->assertEquals(
       '/crm/v3/objects/contacts',
@@ -398,31 +335,58 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       'Should have sent a request to the HubSpot API create contact endpoint'
     );
 
-    $contact = $this->queryContacts([$contact_id])[0];
+    $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
 
-    $this->assertIsNumeric($contact['hubspot_id'], 'The returned HubSpot contact ID should have been saved');
-    $this->assertFalse($contact['has_changes'], 'The "has_changes" flag should have been reset');
-    $this->assertEquals('BG', $contact['owned_by'], 'The contact should be owned by Bulgaria');
-    $this->assertEquals(0, $contact['ownership_score'], 'The ownership score should be 0');
-    $this->assertEqualsWithDelta(time(), strtotime($contact['last_sync_date']), 24 * 60 * 60, 'The timestamp of the last sync should have been updated');
-    $this->assertFalse($contact['last_sync_failed'], 'The "last_sync_failed" flag should be set to FALSE');
+    $this->assertIsNumeric(
+      $contact['hubspot_sync.hubspot_id'],
+      'The returned HubSpot contact ID should have been saved'
+    );
+
+    $this->assertFalse(
+      $contact['hubspot_sync.has_changes'],
+      'The "has_changes" flag should have been reset'
+    );
+
+    $this->assertEquals(
+      'BG',
+      self::getIsoCode($contact['hubspot_sync.owned_by']),
+      'The contact should be owned by Bulgaria'
+    );
+
+    $this->assertEquals(
+      0,
+      $contact['hubspot_sync.ownership_score'],
+      'The ownership score should be 0'
+    );
+
+    $this->assertEqualsWithDelta(
+      time(),
+      strtotime($contact['hubspot_sync.last_sync_date']),
+      24 * 60 * 60,
+      'The timestamp of the last sync should have been updated'
+    );
+
+    $this->assertFalse(
+      $contact['hubspot_sync.last_sync_failed'],
+      'The "last_sync_failed" flag should be set to FALSE'
+    );
 
     $this->assertEquals(
       [
         'owned_by'          => self::OWNER_COUNTRY,
-        'ownership_score'   => $contact['ownership_score'],
+        'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
         'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
       ],
-      json_decode($contact['last_sync_payload'], TRUE),
+      json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync attempt should contain the expected values'
     );
   }
 
   public function testEmailConflict_ReclaimWithHigherScore(): void {
-    $contact_id = $this->contactIds[0];
-    $hubspot_id = self::generateHubspotId();
-    $other_hubspot_id = self::generateHubspotId();
+    $contact_id = (int) self::loadAllContacts(['id'])[0]['id'];
+    $hubspot_id = MockResponses::generateHubspotId();
+    $other_hubspot_id = MockResponses::generateHubspotId();
 
     Api4\Contact::update(FALSE)
       ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
@@ -430,58 +394,38 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       ->addWhere('id', '=', $contact_id)
       ->execute();
 
-    $contact = $this->queryContacts([$contact_id])[0];
+    $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
 
-    $this->mockHandler->append(new Response(
-      400,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'status'   => 'error',
-        'message'  => '...',
-        'category' => 'VALIDATION_ERROR',
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchUpdateContacts(400));
 
-    $this->mockHandler->append(new Response(
-      200,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'id' => $other_hubspot_id,
-        'properties' => [
-          'email'           => $contact['email'],
-          'owned_by'        => 'BG',
-          'ownership_score' => 50,
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::getContactByEmail(200, [
+      'id' => $other_hubspot_id,
+      'properties' => [
+        'email'           => $contact['hubspot_sync.email'],
+        'owned_by'        => 'BG',
+        'ownership_score' => 50,
+      ],
+    ]));
 
-    $this->mockHandler->append(new Response(
-      200,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'id' => $other_hubspot_id,
-        'properties' => [
-          'email'           => $contact['email'],
-          'owned_by'        => 'BG',
-          'ownership_score' => 50,
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::updateContact(200, [
+      'id' => $other_hubspot_id,
+      'properties' => [
+        'email'           => '',
+        'owned_by'        => 'BG',
+        'ownership_score' => 50,
+      ],
+    ]));
 
-    $this->mockHandler->append(new Response(
-      200,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'id' => $hubspot_id,
-        'properties' => [
-          'civicrm_id'        => $contact_id,
-          'email'             => $contact['email'],
-          'owned_by'          => 'AT',
-          'ownership_score'   => 60,
-          'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::updateContact(200, [
+      'id' => $hubspot_id,
+      'properties' => [
+        'civicrm_id'        => $contact_id,
+        'email'             => $contact['hubspot_sync.email'],
+        'owned_by'          => 'AT',
+        'ownership_score'   => 60,
+        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
+      ],
+    ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -503,19 +447,27 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
 
     $this->processQueueItems('hubspot-sync-update-contacts');
 
-    $get_primary_email_owner_req = $this->historyContainer[1]['request'];
-
-    $this->assertEquals('GET', $get_primary_email_owner_req->getMethod(), 'Should have sent a GET request to the HubSpot API');
+    $get_primary_email_owner_req = self::shiftHistory(2)['request'];
 
     $this->assertEquals(
-      "/crm/v3/objects/contacts/{$contact['email']}",
+      'GET',
+      $get_primary_email_owner_req->getMethod(),
+      'Should have sent a GET request to the HubSpot API'
+    );
+
+    $this->assertEquals(
+      "/crm/v3/objects/contacts/{$contact['hubspot_sync.email']}",
       $get_primary_email_owner_req->getUri()->getPath(),
       'Should have sent a request to the HubSpot API get contact endpoint'
     );
 
-    $update_other_contact_req = $this->historyContainer[2]['request'];
+    $update_other_contact_req = self::shiftHistory()['request'];
 
-    $this->assertEquals('PATCH', $update_other_contact_req->getMethod(), 'Should have sent a PATCH request to the HubSpot API');
+    $this->assertEquals(
+      'PATCH',
+      $update_other_contact_req->getMethod(),
+      'Should have sent a PATCH request to the HubSpot API'
+    );
 
     $this->assertEquals(
       "/crm/v3/objects/contacts/$other_hubspot_id",
@@ -523,9 +475,13 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       'Should have sent a request to the HubSpot API update contact endpoint'
     );
 
-    $update_contact_req = $this->historyContainer[3]['request'];
+    $update_contact_req = self::shiftHistory()['request'];
 
-    $this->assertEquals('PATCH', $update_contact_req->getMethod(), 'Should have sent a PATCH request to the HubSpot API');
+    $this->assertEquals(
+      'PATCH',
+      $update_contact_req->getMethod(),
+      'Should have sent a PATCH request to the HubSpot API'
+    );
 
     $this->assertEquals(
       "/crm/v3/objects/contacts/$hubspot_id",
@@ -533,30 +489,53 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       'Should have sent a request to the HubSpot API update contact endpoint'
     );
 
-    $contact = $this->queryContacts([$contact_id])[0];
+    $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
 
-    $this->assertFalse($contact['has_changes'], 'The "has_changes" flag should have been reset');
-    $this->assertEquals(self::OWNER_COUNTRY, $contact['owned_by'], 'The contact should be owned by ' . self::OWNER_COUNTRY);
-    $this->assertEquals(60, $contact['ownership_score'], 'The ownership score should be 60');
-    $this->assertEqualsWithDelta(time(), strtotime($contact['last_sync_date']), 24 * 60 * 60, 'The timestamp of the last sync should have been updated');
-    $this->assertFalse($contact['last_sync_failed'], 'The "last_sync_failed" flag should be set to FALSE');
+    $this->assertFalse(
+      $contact['hubspot_sync.has_changes'],
+      'The "has_changes" flag should have been reset'
+    );
+
+    $this->assertEquals(
+      self::OWNER_COUNTRY,
+      self::getIsoCode($contact['hubspot_sync.owned_by']),
+      'The contact should be owned by ' . self::OWNER_COUNTRY
+    );
+
+    $this->assertEquals(
+      60,
+      $contact['hubspot_sync.ownership_score'],
+      'The ownership score should be 60'
+    );
+
+    $this->assertEqualsWithDelta(
+      time(),
+      strtotime($contact['hubspot_sync.last_sync_date']),
+      24 * 60 * 60,
+      'The timestamp of the last sync should have been updated'
+    );
+
+    $this->assertFalse(
+      $contact['hubspot_sync.last_sync_failed'],
+      'The "last_sync_failed" flag should be set to FALSE'
+    );
 
     $this->assertEquals(
       [
-        'email'             => $contact['email'],
+        'email'             => $contact['hubspot_sync.email'],
         'owned_by'          => self::OWNER_COUNTRY,
-        'ownership_score'   => $contact['ownership_score'],
+        'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
         'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
       ],
-      json_decode($contact['last_sync_payload'], TRUE),
+      json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync attempt should contain the expected values'
     );
   }
 
   public function testUpdateNonExistentContacts(): void {
-    $contact_id = $this->contactIds[0];
-    $hubspot_id = self::generateHubspotId();
+    $contact_id = (int) self::loadAllContacts(['id'])[0]['id'];
+    $hubspot_id = MockResponses::generateHubspotId();
 
     Api4\Contact::update(FALSE)
       ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
@@ -565,25 +544,7 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
       ->addWhere('id', '=', $contact_id)
       ->execute();
 
-    $contact = $this->queryContacts([$contact_id])[0];
-
-    $this->mockHandler->append(new Response(
-      207,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'status'    => 'COMPLETE',
-        'results'   => [],
-        'numErrors' => 1,
-        'errors'    => [
-          [
-            'status'   => 'error',
-            'category' => 'OBJECT_NOT_FOUND',
-            'message'  => 'Could not get some CONTACT objects, they may be deleted or not exist. Check that ids are valid.',
-            'context'  => [ 'ids' => [$hubspot_id] ],
-          ],
-        ],
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchUpdateContacts(207, [ 'ids' => [$hubspot_id] ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -608,40 +569,43 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
 
     $this->processQueueItems('hubspot-sync-update-contacts');
 
-    $contact = $this->queryContacts([$contact_id])[0];
+    $contact = self::loadSingleContact($contact_id, ['*', 'hubspot_sync.*']);
 
-    $this->assertFalse($contact['has_changes'], 'The "has_changes" flag should have been reset');
-    $this->assertEqualsWithDelta(time(), strtotime($contact['last_sync_date']), 24 * 60 * 60, 'The timestamp of the last sync should have been updated');
-    $this->assertTrue($contact['last_sync_failed'], 'The "last_sync_failed" flag should be set to TRUE');
+    $this->assertFalse(
+      $contact['hubspot_sync.has_changes'],
+      'The "has_changes" flag should have been reset'
+    );
+
+    $this->assertEqualsWithDelta(
+      time(),
+      strtotime($contact['hubspot_sync.last_sync_date']),
+      24 * 60 * 60,
+      'The timestamp of the last sync should have been updated'
+    );
+
+    $this->assertTrue(
+      $contact['hubspot_sync.last_sync_failed'],
+      'The "last_sync_failed" flag should be set to TRUE'
+    );
 
     $this->assertEquals(
       [
         'firstname'         => $contact['first_name'],
         'lastname'          => $contact['last_name'],
         'date_of_birth'     => $contact['birth_date'],
-        'email'             => $contact['email'],
+        'email'             => $contact['hubspot_sync.email'],
         'owned_by'          => self::OWNER_COUNTRY,
-        'ownership_score'   => $contact['ownership_score'],
+        'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
         'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
       ],
-      json_decode($contact['last_sync_payload'], TRUE),
+      json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync should contain the expected values'
     );
   }
 
   public function testRateLimitError(): void {
-    $contacts = $this->queryContacts();
-
-    $this->mockHandler->append(new Response(
-      429,
-      [ 'Content-Type' => 'application/json' ],
-      json_encode([
-        'status'    => 'error',
-        'message'   => 'You have reached your ten_secondly_rolling limit.',
-        'errorType' => 'RATE_LIMIT',
-      ])
-    ));
+    self::$mockHandler->append(MockResponses::batchCreateContacts(429));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
@@ -660,7 +624,7 @@ class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterf
     ]);
 
     $this->assertEquals([
-      'scheduledForCreate' => count($contacts),
+      'scheduledForCreate' => count(self::loadAllContacts(['id'])),
       'scheduledForUpdate' => 0,
     ], $sync_result);
 

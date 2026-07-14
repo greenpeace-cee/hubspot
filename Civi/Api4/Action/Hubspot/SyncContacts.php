@@ -14,7 +14,7 @@ use GuzzleHttp\Psr7\Response;
 /**
  * Sync modified contacts to HubSpot
  */
-class Sync extends Api4\Generic\DAOGetAction {
+class SyncContacts extends Api4\Generic\DAOGetAction {
 
   const SYNC_TABLE = 'civicrm_value_hubspot_sync';
 

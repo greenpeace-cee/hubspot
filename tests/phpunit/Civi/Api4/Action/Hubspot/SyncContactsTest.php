@@ -21,7 +21,7 @@ use PHPUnit\Framework\TestCase;
 /**
  * @group headless
  */
-class SyncTest extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
+class SyncContactsTest extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
 
   const OWNER_COUNTRY = 'AT';
 
@@ -156,7 +156,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(first_name) AS firstname',
         'CONCAT(last_name) AS lastname',
@@ -247,7 +247,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(first_name) AS firstname',
         'CONCAT(last_name) AS lastname',
@@ -358,7 +358,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
@@ -483,7 +483,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
@@ -585,7 +585,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(first_name) AS firstname',
         'CONCAT(last_name) AS lastname',
@@ -643,7 +643,7 @@ class SyncTest extends TestCase implements HeadlessInterface, HookInterface, Tra
       ])
     ));
 
-    $sync_result = (array) civicrm_api4('Hubspot', 'sync', [
+    $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
       'select' => [
         'CONCAT(first_name) AS firstname',
         'CONCAT(last_name) AS lastname',

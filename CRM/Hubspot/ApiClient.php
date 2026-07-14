@@ -16,6 +16,12 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
+  public static function batchCreateEvents(array $events_batch): Response {
+    return self::request('POST', '/events/2026-03/send/batch', [
+      'json' => [ 'inputs' => $events_batch ],
+    ]);
+  }
+
   public static function batchGetContacts(array $contact_ids, array $props = []): Response {
     return self::request('POST', '/crm/v3/objects/contacts/batch/read', [
       'json' => [

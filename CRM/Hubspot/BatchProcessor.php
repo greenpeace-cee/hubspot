@@ -6,6 +6,7 @@ abstract class CRM_Hubspot_BatchProcessor {
   const DEFAULT_QUEUE_NAME = 'hubspot-batch-processor';
 
   private array $batch = [];
+  private int $batchSize;
   private int $batchCount = 0;
   private CRM_Queue_Queue_SqlParallel $queue;
 

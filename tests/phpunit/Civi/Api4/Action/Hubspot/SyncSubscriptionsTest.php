@@ -4,6 +4,7 @@ declare(strict_types = 1);
 namespace Civi\Api4\Action\Hubspot;
 
 use Civi\Api4;
+use CRM_Hubspot_UUIDTrait as UUIDTrait;
 use DateTimeImmutable;
 use GuzzleHttp\Psr7\Response;
 
@@ -11,6 +12,8 @@ use GuzzleHttp\Psr7\Response;
  * @group headless
  */
 class SyncSubscriptionsTest extends TestBase {
+
+  use UUIDTrait;
 
   private static array $subscriptions;
 
@@ -37,7 +40,7 @@ class SyncSubscriptionsTest extends TestBase {
     $contacts = self::loadAllContacts(['id', 'hubspot_sync.*']);
 
     $events = array_map(fn ($n) => [
-      'id'              => MockResponses::generateUUID(),
+      'id'              => self::generateUUID(),
       'change'          => 'SUBSCRIBED',
       'object_id'       => $contacts[$n]['hubspot_sync.hubspot_id'],
       'email'           => $contacts[$n]['hubspot_sync.email'],

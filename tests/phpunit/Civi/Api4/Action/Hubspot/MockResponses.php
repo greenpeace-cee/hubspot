@@ -3,8 +3,11 @@
 namespace Civi\Api4\Action\Hubspot;
 
 use GuzzleHttp\Psr7\Response;
+use CRM_Hubspot_UUIDTrait as UUIDTrait;
 
 class MockResponses {
+
+  use UUIDTrait;
 
   const PORTAL_ID = 1234;
 
@@ -14,13 +17,6 @@ class MockResponses {
 
   public static function generateRandomString(int $length): string {
     return substr(strtr(base64_encode(random_bytes($length)), '+/', '-_'), 0, $length);
-  }
-
-  public static function generateUUID(): string {
-    return implode('-', array_map(
-      fn ($n) => bin2hex(random_bytes($n / 2)),
-      [8, 4, 4, 4, 12]
-    ));
   }
 
   public static function toTimestampMilliseconds(string|DateTimeImmutable $datetime): int {

@@ -67,6 +67,8 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
         $event_properties = [ 'civicrm_id' => $event['id'] ];
 
         foreach ($event as $key => $value) {
+          if (is_null($value)) continue;
+
           $matches = [];
 
           if (!preg_match("/^$custom_group\.(\w+)$/", $key, $matches)) continue;
@@ -77,7 +79,7 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
         yield [
           'eventName'  => $event_type,
           'properties' => $event_properties,
-          'email'      => $event['contact_id.hubspot_sync.email'],
+          'email'      => $event['contact_id.hubspot_sync.email'] ?? "",
           'objectId'   => $event['contact_id.hubspot_sync.hubspot_id'],
           'occurredAt' => (new DateTimeImmutable($event['created_date']))->format('c'),
           'uuid'       => self::generateUUID(),

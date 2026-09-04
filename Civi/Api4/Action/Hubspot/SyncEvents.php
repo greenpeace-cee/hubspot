@@ -16,7 +16,10 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
   use UUIDTrait;
 
   public function _run(Api4\Generic\Result $result) {
-    $batch_processor = new BatchEventCreator([ 'queue_name' => 'hubspot-sync-create-events' ]);
+    $batch_processor = new BatchEventCreator([
+      'queue_name' => 'hubspot-sync-create-events',
+      'batch_size' => 500,
+    ]);
 
     $event_types = self::getEventTypes();
 

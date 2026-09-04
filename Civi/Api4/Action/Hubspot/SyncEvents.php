@@ -53,6 +53,7 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
         )
         ->addWhere('event_type_id:name', '=', $event_type)
         ->addWhere('hubspot_id', 'IS NULL')
+        ->addWhere('contact_id.hubspot_sync.hubspot_id', 'IS NOT NULL')
         ->addWhere('id', '>', $event_id_offset)
         ->addOrderBy('id', 'ASC')
         ->setLimit(10)

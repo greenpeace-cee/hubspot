@@ -1,14 +1,21 @@
 <?php
 
 use Civi\Api4;
+use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
+use GuzzleHttp\MessageFormatter;
+use GuzzleHttp\Middleware;
 use GuzzleHttp\Psr7\Response;
 
 class CRM_Hubspot_ApiClient {
 
   use CRM_Hubspot_LoadHubspotAccountTrait;
 
+  const LOG_MESSAGE_TEMPLATE = "\n\nRequest: {method} {uri}\n{req_body}\n\nResponse: {code} {phrase}\n{res_body}\n\nError: {error}";
+
   public static HandlerStack $handlerStack;
+
+  private static Client $_client;
 
   public static function batchCreateContacts(array $contacts_batch): Response {
     return self::request('POST', '/crm/v3/objects/contacts/batch/create', [
@@ -84,52 +91,42 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
-  private static function request(string $method, string $endpoint, array $options = []): Response {
-    $config = self::hubspotAccount();
+  private static function client(): Client {
+    if (!isset(self::$_client)) {
+      $config = self::hubspotAccount();
 
-    $client = isset(self::$handlerStack)
-      ? new GuzzleHttp\Client([ 'handler' => self::$handlerStack ])
-      : new GuzzleHttp\Client([ 'base_uri' => $config['base_uri'] ]);
+      if (!isset(self::$handlerStack)) {
+        self::$handlerStack = HandlerStack::create();
+
+        $logger = Middleware::log(
+          Civi::log('hubspot-sync'),
+          new MessageFormatter(self::LOG_MESSAGE_TEMPLATE)
+        );
+
+        self::$handlerStack->push($logger);
+      }
+
+      self::$_client = new Client([
+        'handler'  => self::$handlerStack,
+        'base_uri' => $config['base_uri'],
+      ]);
+    }
+
+    return self::$_client;
+  }
+
+  private static function request(string $method, string $endpoint, array $options = []): Response {
+    $api_key = self::hubspotAccount()['api_key'];
 
     $options = [
       ...$options,
       'headers' => [
         ...($options['headers'] ?? []),
-        'Authorization' => 'Bearer ' . $config['api_key'],
+        'Authorization' => "Bearer $api_key",
       ],
     ];
 
-    $response = $client->request($method, $endpoint, $options);
-    $response_body = json_decode((string) $response->getBody(), TRUE);
-
-    $request_data = [
-      'method'   => $method,
-      'endpoint' => $endpoint,
-      'headers'  => $options['headers'],
-    ];
-
-    $request_data['headers']['Authorization'] = 'Bearer *****';
-
-    if (!empty($options['query'])) {
-      $request_data['query_params'] = $options['query'];
-    }
-
-    if (isset($options['json'])) {
-      $request_data['body'] = $options['json'];
-    }
-
-    $response_data = [
-      'status'  => $response->getStatusCode() . ' ' . $response->getReasonPhrase(),
-      'headers' => $response->getHeaders(),
-      'body'    => $response_body,
-    ];
-
-    Civi::log('hubspot-sync')->info("$method {$config['base_uri']}$endpoint", [
-      'request'  => $request_data,
-      'response' => $response_data,
-    ]);
-
-    return $response;
+    return self::client()->request($method, $endpoint, $options);
   }
 
 }

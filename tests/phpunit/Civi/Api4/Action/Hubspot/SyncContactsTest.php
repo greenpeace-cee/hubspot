@@ -17,7 +17,7 @@ class SyncContactsTest extends TestBase {
         ->addValue('hubspot_sync.hubspot_id',        NULL)
         ->addValue('hubspot_sync.has_changes',       FALSE)
         ->addValue('hubspot_sync.ownership_score',   0)
-        ->addValue('hubspot_sync.owned_by:abbr',     self::OWNER_COUNTRY)
+        ->addValue('hubspot_sync.owned_by',          self::OWNER_IDENTIFIER)
         ->addValue('hubspot_sync.last_sync_date',    NULL)
         ->addValue('hubspot_sync.last_sync_failed',  FALSE)
         ->addValue('hubspot_sync.last_sync_payload', NULL)
@@ -33,8 +33,8 @@ class SyncContactsTest extends TestBase {
       'date_of_birth'     => $contact['birth_date'],
       'email'             => $contact['hubspot_sync.email'],
       'civicrm_id'        => $contact['id'],
-      'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
-      'owned_by'          => self::getIsoCode($contact['hubspot_sync.owned_by']),
+      'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
+      'owned_by'          => $contact['hubspot_sync.owned_by'],
       'ownership_score'   => $contact['hubspot_sync.ownership_score'],
     ];
   }
@@ -43,7 +43,7 @@ class SyncContactsTest extends TestBase {
     $contacts = self::loadAllContacts(['*', 'hubspot_sync.*']);
 
     self::$mockHandler->append(MockResponses::batchCreateContacts(201, [
-      'contacts' => array_map('self::mapToHubspotProps', $contacts),
+      'contacts' => array_map('Civi\Api4\Action\Hubspot\SyncContactsTest::mapToHubspotProps', $contacts),
     ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
@@ -53,7 +53,7 @@ class SyncContactsTest extends TestBase {
         'CONCAT(birth_date) AS date_of_birth',
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [
@@ -106,9 +106,9 @@ class SyncContactsTest extends TestBase {
       );
 
       $this->assertEquals(
-        self::OWNER_COUNTRY,
-        self::getIsoCode($contact['hubspot_sync.owned_by']),
-        'The contact should be owned by ' . self::OWNER_COUNTRY
+        self::OWNER_IDENTIFIER,
+        $contact['hubspot_sync.owned_by'],
+        'The contact should be owned by ' . self::OWNER_IDENTIFIER
       );
 
       $this->assertEquals(
@@ -135,10 +135,10 @@ class SyncContactsTest extends TestBase {
           'lastname'          => $contact['last_name'],
           'date_of_birth'     => $contact['birth_date'],
           'email'             => $contact['hubspot_sync.email'],
-          'owned_by'          => self::OWNER_COUNTRY,
+          'owned_by'          => self::OWNER_IDENTIFIER,
           'ownership_score'   => $contact['hubspot_sync.ownership_score'],
           'civicrm_id'        => $contact['id'],
-          'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
+          'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
         ],
         json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
         'The payload of the latest sync should contain the expected values'
@@ -163,7 +163,7 @@ class SyncContactsTest extends TestBase {
 
     self::$mockHandler->append(MockResponses::batchUpdateContacts(200, [
       'ids'        => array_map(fn ($contact) => $contact['hubspot_sync.hubspot_id'], $contacts),
-      'properties' => array_map('self::mapToHubspotProps', $contacts),
+      'properties' => array_map('Civi\Api4\Action\Hubspot\SyncContactsTest::mapToHubspotProps', $contacts),
     ]));
 
     $sync_result = (array) civicrm_api4('Hubspot', 'syncContacts', [
@@ -173,7 +173,7 @@ class SyncContactsTest extends TestBase {
         'CONCAT(birth_date) AS date_of_birth',
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [
@@ -221,9 +221,9 @@ class SyncContactsTest extends TestBase {
       );
 
       $this->assertEquals(
-        self::OWNER_COUNTRY,
-        self::getIsoCode($contact['hubspot_sync.owned_by']),
-        'The contact should still be owned by ' . self::OWNER_COUNTRY
+        self::OWNER_IDENTIFIER,
+        $contact['hubspot_sync.owned_by'],
+        'The contact should still be owned by ' . self::OWNER_IDENTIFIER
       );
 
       $this->assertEquals(
@@ -250,10 +250,10 @@ class SyncContactsTest extends TestBase {
           'lastname'          => $contact['last_name'],
           'date_of_birth'     => $contact['birth_date'],
           'email'             => $contact['hubspot_sync.email'],
-          'owned_by'          => self::OWNER_COUNTRY,
+          'owned_by'          => self::OWNER_IDENTIFIER,
           'ownership_score'   => $contact['hubspot_sync.ownership_score'],
           'civicrm_id'        => $contact['id'],
-          'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
+          'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
         ],
         json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
         'The payload of the latest sync should contain the expected values'
@@ -283,7 +283,7 @@ class SyncContactsTest extends TestBase {
         'civicrm_id'        => $contact_id,
         'owned_by'          => 'AT',
         'ownership_score'   => 0,
-        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact_id,
       ],
     ]));
 
@@ -291,7 +291,7 @@ class SyncContactsTest extends TestBase {
       'select' => [
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [
@@ -349,7 +349,7 @@ class SyncContactsTest extends TestBase {
 
     $this->assertEquals(
       'BG',
-      self::getIsoCode($contact['hubspot_sync.owned_by']),
+      $contact['hubspot_sync.owned_by'],
       'The contact should be owned by Bulgaria'
     );
 
@@ -373,10 +373,10 @@ class SyncContactsTest extends TestBase {
 
     $this->assertEquals(
       [
-        'owned_by'          => self::OWNER_COUNTRY,
+        'owned_by'          => self::OWNER_IDENTIFIER,
         'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
-        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
       ],
       json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync attempt should contain the expected values'
@@ -423,7 +423,7 @@ class SyncContactsTest extends TestBase {
         'email'             => $contact['hubspot_sync.email'],
         'owned_by'          => 'AT',
         'ownership_score'   => 60,
-        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact_id,
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact_id,
       ],
     ]));
 
@@ -431,7 +431,7 @@ class SyncContactsTest extends TestBase {
       'select' => [
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [
@@ -497,9 +497,9 @@ class SyncContactsTest extends TestBase {
     );
 
     $this->assertEquals(
-      self::OWNER_COUNTRY,
-      self::getIsoCode($contact['hubspot_sync.owned_by']),
-      'The contact should be owned by ' . self::OWNER_COUNTRY
+      self::OWNER_IDENTIFIER,
+      $contact['hubspot_sync.owned_by'],
+      'The contact should be owned by ' . self::OWNER_IDENTIFIER
     );
 
     $this->assertEquals(
@@ -523,10 +523,10 @@ class SyncContactsTest extends TestBase {
     $this->assertEquals(
       [
         'email'             => $contact['hubspot_sync.email'],
-        'owned_by'          => self::OWNER_COUNTRY,
+        'owned_by'          => self::OWNER_IDENTIFIER,
         'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
-        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
       ],
       json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync attempt should contain the expected values'
@@ -553,7 +553,7 @@ class SyncContactsTest extends TestBase {
         'CONCAT(birth_date) AS date_of_birth',
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [
@@ -594,10 +594,10 @@ class SyncContactsTest extends TestBase {
         'lastname'          => $contact['last_name'],
         'date_of_birth'     => $contact['birth_date'],
         'email'             => $contact['hubspot_sync.email'],
-        'owned_by'          => self::OWNER_COUNTRY,
+        'owned_by'          => self::OWNER_IDENTIFIER,
         'ownership_score'   => $contact['hubspot_sync.ownership_score'],
         'civicrm_id'        => $contact['id'],
-        'unique_civicrm_id' => self::OWNER_COUNTRY . '-' . $contact['id'],
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact['id'],
       ],
       json_decode($contact['hubspot_sync.last_sync_payload'], TRUE),
       'The payload of the latest sync should contain the expected values'
@@ -614,7 +614,7 @@ class SyncContactsTest extends TestBase {
         'CONCAT(birth_date) AS date_of_birth',
         'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
         'CONCAT(hubspot_sync.email) AS email',
-        'CONCAT(hubspot_sync.owned_by:abbr) AS owned_by',
+        'CONCAT(hubspot_sync.owned_by) AS owned_by',
         'ABS(hubspot_sync.ownership_score) AS ownership_score',
       ],
       'where' => [

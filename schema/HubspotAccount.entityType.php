@@ -54,16 +54,12 @@ return [
       'input_type' => 'Text',
       'required' => TRUE,
     ],
-    'owner_country' => [
-      'title' => E::ts('Owner country'),
-      'description' => E::ts('Determines which country the synced contacts in HubSpot will belong to'),
-      'data_type' => 'Int',
-      'sql_type' => 'int unsigned',
-      'input_type' => 'EntityRef',
-      'entity_reference' => [
-        'entity' => 'Country',
-        'key' => 'id',
-      ],
+    'owner_identifier' => [
+      'title' => E::ts('Owner Identifier'),
+      'description' => E::ts('Determines the identifier used to mark contacts as belonging to this account'),
+      'data_type' => 'String',
+      'sql_type' => 'varchar(6)',
+      'input_type' => 'Text',
       'required' => TRUE,
     ],
     'created_date' => [

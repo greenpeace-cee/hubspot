@@ -21,7 +21,7 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
   use CountryIsoResolverTrait;
 
   const HUBSPOT_ACCOUNT_ID = 19946500;
-  const OWNER_COUNTRY = 'AT';
+  const OWNER_IDENTIFIER = 'AT';
 
   private static array $_contactIds;
   private static array $_historyContainer;
@@ -44,9 +44,9 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
     Api4\HubspotAccount::create(FALSE)
       ->addValue('account_id', self::HUBSPOT_ACCOUNT_ID)
       ->addValue('name', 'Test account GPCEE')
-      ->addValue('base_uri', 'https://api.hubapi.com')
+      ->addValue('base_uri', 'https://api.hubapi.test')
       ->addValue('api_key', 'pat-abc-00000000-1111-2222-3333-444444444444')
-      ->addValue('owner_country', self::getCountryId(self::OWNER_COUNTRY))
+      ->addValue('owner_identifier', self::OWNER_IDENTIFIER)
       ->execute()
       ->first();
 
@@ -57,7 +57,7 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
         ->addValue('last_name',                      "#$i")
         ->addValue('birth_date',                     date('Y-m-d', random_int(0, pow(10, 9))))
         ->addValue('hubspot_sync.email',             "contact-$i@example.org")
-        ->addValue('hubspot_sync.owned_by:abbr',     self::OWNER_COUNTRY)
+        ->addValue('hubspot_sync.owned_by',          self::OWNER_IDENTIFIER)
         ->execute()
         ->first()['id'];
     }
@@ -103,11 +103,10 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
     $this->assertEquals($expected_outcome, $queue_result['outcome'], "The outcome of the queue runner should be '$expected_outcome'");
 
     if ($expected_outcome === 'ok') {
-      $queue_items = (array) Api4\QueueItem::get(FALSE)
-        ->addWhere('queue_name', '=', $queue_name)
-        ->execute();
-
-      $this->assertEmpty($queue_items, 'All queue items should have been processed');
+      $queue_item = new \CRM_Queue_BAO_QueueItem();
+      $queue_item->queue_name = $queue_name;
+      $queue_item->find();
+      $this->assertEquals(FALSE, $queue_item->fetch(), 'All queue items should have been processed');
     }
   }
 

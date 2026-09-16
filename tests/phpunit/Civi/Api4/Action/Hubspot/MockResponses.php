@@ -19,7 +19,7 @@ class MockResponses {
     return substr(strtr(base64_encode(random_bytes($length)), '+/', '-_'), 0, $length);
   }
 
-  public static function toTimestampMilliseconds(string|DateTimeImmutable $datetime): int {
+  public static function toTimestampMilliseconds($datetime): int {
     if (is_string($datetime)) {
       $datetime = new DateTimeImmutable($datetime);
     }

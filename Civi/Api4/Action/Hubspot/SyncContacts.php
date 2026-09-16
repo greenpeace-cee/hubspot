@@ -30,7 +30,7 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
       $hubspot_id = $contact['hubspot_id'];
       unset($contact['hubspot_id']);
 
-      $contact['owned_by'] = self::getIsoCode(self::hubspotAccount()['owner_country']);
+      $contact['owned_by'] = self::hubspotAccount()['owner_identifier'];
       $contact['unique_civicrm_id'] = $contact['owned_by'] . '-' . $contact['civicrm_id'];
 
       if (empty($hubspot_id)) {
@@ -41,7 +41,7 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
           'id'         => $hubspot_id,
           'properties' => $contact,
         ]);
-        
+
         $result['scheduledForUpdate']++;
       }
     }
@@ -60,10 +60,14 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
       'checkPermissions' => FALSE,
     ];
 
-    $select_hubspot_id = array_find(
-      $contact_query['select'],
-      fn ($value) => (bool) preg_match("/(^| AS )hubspot_id$/", $value)
-    );
+    $select_hubspot_id = null;
+
+    foreach ($contact_query['select'] as $value) {
+      if (preg_match('/(^| AS )hubspot_id$/', $value)) {
+        $select_hubspot_id = $value;
+        break;
+      }
+    }
 
     if (is_null($select_hubspot_id)) {
       throw new Exception("Invalid sync query: Missing property 'hubspot_id' in select clause");

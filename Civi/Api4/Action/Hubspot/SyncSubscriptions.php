@@ -227,7 +227,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     return $subscription['id'];
   }
 
-  private static function toTimestampMilliseconds(string|DateTimeImmutable $datetime): int {
+  private static function toTimestampMilliseconds($datetime): int {
     if (is_string($datetime)) {
       $datetime = new DateTimeImmutable($datetime);
     }

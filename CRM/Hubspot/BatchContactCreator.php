@@ -27,7 +27,7 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
     foreach ($batch as $batch_item) {
       $civicrm_id = (int) $batch_item['properties']['civicrm_id'];
       $email = $batch_item['properties']['email'] ?? NULL;
-      $owned_by = self::hubspotAccount()['owner_country'];
+      $owned_by = self::hubspotAccount()['owner_identifier'];
       $sync_payload = $batch_item['properties'];
 
       try {
@@ -41,7 +41,7 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
             ApiClient::updateContact($primary_email_owner['id'], [ 'email' => '' ]);
           } else {
             unset($sync_payload['email']);
-            $owned_by = self::getCountryId($primary_email_owner['properties']['owned_by']);
+            $owned_by = $primary_email_owner['properties']['owned_by'];
           }
         }
 
@@ -85,7 +85,7 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
       self::updateSyncRecord([
         'entity_id'         => $result_item['properties']['civicrm_id'],
         'hubspot_id'        => $hubspot_id,
-        'owned_by'          => self::hubspotAccount()['owner_country'],
+        'owned_by'          => self::hubspotAccount()['owner_identifier'],
         'last_sync_failed'  => FALSE,
         'last_sync_payload' => $sync_payload,
       ]);

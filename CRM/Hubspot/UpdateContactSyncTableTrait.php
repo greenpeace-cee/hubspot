@@ -24,8 +24,8 @@ trait CRM_Hubspot_UpdateContactSyncTableTrait {
         }
 
         case 'owned_by': {
-          $assignments[] = "owned_by = NULLIF(%$i, 0)";
-          $params[$i] = [$value ?? 0, 'Integer'];
+          $assignments[] = "owned_by = NULLIF(%$i, '')";
+          $params[$i] = [$value ?? '', 'String'];
           break;
         }
 

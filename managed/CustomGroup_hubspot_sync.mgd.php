@@ -123,11 +123,12 @@ return [
       'values' => [
         'custom_group_id.name' => 'hubspot_sync',
         'name' => 'owned_by',
-        'label' => E::ts('Owned By'),
+        'label' => E::ts('Owned by'),
         'column_name' => 'owned_by',
-        'data_type' => 'Country',
-        'html_type' => 'Select',
-        'text_length' => 2,
+        'data_type' => 'String',
+        'html_type' => 'Text',
+        'text_length' => 6,
+        'is_searchable' => TRUE,
       ],
       'match' => [
         'name',

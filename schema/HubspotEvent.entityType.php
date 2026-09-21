@@ -54,6 +54,14 @@ return [
       ],
       'required' => TRUE,
     ],
+    'event_date' => [
+      'title' => E::ts('Event Date'),
+      'sql_type' => 'datetime',
+      'input_type' => 'Select Date',
+      'required' => TRUE,
+      'description' => E::ts('Date at which the event occurred'),
+      'default' => 'CURRENT_TIMESTAMP',
+    ],
     'sync_date' => [
       'title' => E::ts('Sync Date'),
       'description' => E::ts('Date of the event sync'),
@@ -86,6 +94,13 @@ return [
       'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
     ],
   ],
-  'getIndices' => fn() => [],
+  'getIndices' => fn() => [
+    'index_event_type_id' => [
+      'fields' => [
+        'event_type_id' => TRUE,
+      ],
+      'unique' => FALSE,
+    ],
+  ],
   'getPaths' => fn() => [],
 ];

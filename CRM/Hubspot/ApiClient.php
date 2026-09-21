@@ -118,13 +118,14 @@ class CRM_Hubspot_ApiClient {
   private static function request(string $method, string $endpoint, array $options = []): Response {
     $api_key = self::hubspotAccount()['api_key'];
 
-    $options = [
-      ...$options,
-      'headers' => [
-        ...($options['headers'] ?? []),
-        'Authorization' => "Bearer $api_key",
-      ],
-    ];
+    $options = array_merge($options, [
+      'headers' => array_merge(
+        $options['headers'] ?? [],
+        [
+          'Authorization' => "Bearer $api_key",
+        ]
+      ),
+    ]);
 
     return self::client()->request($method, $endpoint, $options);
   }

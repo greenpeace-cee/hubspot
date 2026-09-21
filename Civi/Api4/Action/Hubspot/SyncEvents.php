@@ -48,7 +48,7 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
         ->addSelect(
           'contact_id.hubspot_sync.email',
           'contact_id.hubspot_sync.hubspot_id',
-          'created_date',
+          'event_date',
           "$custom_group.*"
         )
         ->addWhere('event_type_id:name', '=', $event_type)
@@ -81,7 +81,7 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
           'properties' => $event_properties,
           'email'      => $event['contact_id.hubspot_sync.email'] ?? "",
           'objectId'   => $event['contact_id.hubspot_sync.hubspot_id'],
-          'occurredAt' => (new DateTimeImmutable($event['created_date']))->format('c'),
+          'occurredAt' => (new DateTimeImmutable($event['event_date']))->format('c'),
           'uuid'       => self::generateUUID(),
         ];
       }

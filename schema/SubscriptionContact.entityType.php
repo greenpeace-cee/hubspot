@@ -6,6 +6,7 @@ return [
   'name' => 'SubscriptionContact',
   'table' => 'civicrm_subscription_contact',
   'class' => 'CRM_Hubspot_DAO_SubscriptionContact',
+  'links_callback' => ['CRM_Hubspot_ReferenceCompat::links'],
   'getInfo' => fn() => [
     'title' => E::ts('SubscriptionContact'),
     'title_plural' => E::ts('SubscriptionContacts'),

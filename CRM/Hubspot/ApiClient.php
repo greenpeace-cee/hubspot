@@ -57,6 +57,12 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
+  public static function gdprDeleteContact(string $contact_id): Response {
+    return self::request('POST', '/crm/v3/objects/contacts/gdpr-delete', [
+      'json' => [ 'objectId' => $contact_id ],
+    ]);
+  }
+
   public static function getContactByEmail(string $email, array $props = []): Response {
     return self::request('GET', "/crm/v3/objects/contacts/$email", [
       'query' => [
@@ -81,6 +87,15 @@ class CRM_Hubspot_ApiClient {
       'query' => [
         'startTimestamp' => $start,
         'endTimestamp'   => $end,
+      ],
+    ]);
+  }
+
+  public static function mergeContacts(string $primary_id, string $duplicate_id): Response {
+    return self::request('POST', '/crm/v3/objects/contacts/gdpr-delete', [
+      'json' => [
+        'primaryObjectId' => $primary_id,
+        'objectIdToMerge' => $duplicate_id,
       ],
     ]);
   }

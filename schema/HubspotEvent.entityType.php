@@ -6,6 +6,7 @@ return [
   'name' => 'HubspotEvent',
   'table' => 'civicrm_hubspot_event',
   'class' => 'CRM_Hubspot_DAO_HubspotEvent',
+  'links_callback' => ['CRM_Hubspot_ReferenceCompat::links'],
   'getInfo' => fn() => [
     'title' => E::ts('HubspotEvent'),
     'title_plural' => E::ts('HubspotEvents'),

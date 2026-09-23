@@ -46,29 +46,6 @@ return [
     ],
   ],
   [
-    'name' => 'CustomGroup_hubspot_sync_CustomField_has_changes',
-    'entity' => 'CustomField',
-    'cleanup' => 'never',
-    'update' => 'always',
-    'params' => [
-      'version' => 4,
-      'values' => [
-        'custom_group_id.name' => 'hubspot_sync',
-        'name' => 'has_changes',
-        'label' => E::ts('Has Contact Property Changes?'),
-        'column_name' => 'has_changes',
-        'data_type' => 'Boolean',
-        'html_type' => 'Toggle',
-        'default_value' => '0',
-        'is_view' => TRUE,
-      ],
-      'match' => [
-        'name',
-        'custom_group_id',
-      ],
-    ],
-  ],
-  [
     'name' => 'CustomGroup_hubspot_sync_CustomField_email',
     'entity' => 'CustomField',
     'cleanup' => 'never',
@@ -137,6 +114,29 @@ return [
     ],
   ],
   [
+    'name' => 'CustomGroup_hubspot_sync_CustomField_sync_status',
+    'entity' => 'CustomField',
+    'cleanup' => 'never',
+    'update' => 'always',
+    'params' => [
+      'version' => 4,
+      'values' => [
+        'custom_group_id.name' => 'hubspot_sync',
+        'name' => 'sync_status',
+        'label' => E::ts('Sync Status'),
+        'column_name' => 'sync_status',
+        'data_type' => 'String',
+        'html_type' => 'Autocomplete-Select',
+        'option_group_id.name' => 'sync_status',
+        'is_view' => TRUE,
+      ],
+      'match' => [
+        'name',
+        'custom_group_id',
+      ],
+    ],
+  ],
+  [
     'name' => 'CustomGroup_hubspot_sync_CustomField_last_sync_date',
     'entity' => 'CustomField',
     'cleanup' => 'never',
@@ -151,29 +151,6 @@ return [
         'data_type' => 'Date',
         'html_type' => 'Select Date',
         'date_format' => 'mm/dd/yy',
-        'is_view' => TRUE,
-      ],
-      'match' => [
-        'name',
-        'custom_group_id',
-      ],
-    ],
-  ],
-  [
-    'name' => 'CustomGroup_hubspot_sync_CustomField_last_sync_failed',
-    'entity' => 'CustomField',
-    'cleanup' => 'never',
-    'update' => 'always',
-    'params' => [
-      'version' => 4,
-      'values' => [
-        'custom_group_id.name' => 'hubspot_sync',
-        'name' => 'last_sync_failed',
-        'label' => E::ts('Did the last sync to HubSpot fail?'),
-        'column_name' => 'last_sync_failed',
-        'data_type' => 'Boolean',
-        'html_type' => 'Toggle',
-        'default_value' => '0',
         'is_view' => TRUE,
       ],
       'match' => [

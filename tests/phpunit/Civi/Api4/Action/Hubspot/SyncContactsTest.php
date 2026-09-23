@@ -15,11 +15,10 @@ class SyncContactsTest extends TestBase {
     foreach (self::loadAllContacts(['id']) as $contact) {
       Api4\Contact::update(FALSE)
         ->addValue('hubspot_sync.hubspot_id',        NULL)
-        ->addValue('hubspot_sync.has_changes',       FALSE)
         ->addValue('hubspot_sync.ownership_score',   0)
         ->addValue('hubspot_sync.owned_by',          self::OWNER_IDENTIFIER)
         ->addValue('hubspot_sync.last_sync_date',    NULL)
-        ->addValue('hubspot_sync.last_sync_failed',  FALSE)
+        ->addValue('hubspot_sync.sync_status.name',  'initial')
         ->addValue('hubspot_sync.last_sync_payload', NULL)
         ->addWhere('id', '=', $contact['id'])
         ->execute();
@@ -100,11 +99,6 @@ class SyncContactsTest extends TestBase {
         'The returned HubSpot contact ID should have been saved'
       );
 
-      $this->assertFalse(
-        $contact['hubspot_sync.has_changes'],
-        'The "has_changes" flag should have been reset'
-      );
-
       $this->assertEquals(
         self::OWNER_IDENTIFIER,
         $contact['hubspot_sync.owned_by'],
@@ -124,9 +118,10 @@ class SyncContactsTest extends TestBase {
         'The timestamp of the last sync should have been updated'
       );
 
-      $this->assertFalse(
-        $contact['hubspot_sync.last_sync_failed'],
-        'The "last_sync_failed" flag should be set to FALSE'
+      $this->assertEquals(
+        'successful',
+        $contact['hubspot_sync.sync_status'],
+        'The "sync_status" should be set to "successful"'
       );
 
       $this->assertEquals(
@@ -152,7 +147,6 @@ class SyncContactsTest extends TestBase {
     foreach ($contact_ids as $contact_id) {
       Api4\Contact::update(FALSE)
         ->addValue('hubspot_sync.hubspot_id', MockResponses::generateHubspotId())
-        ->addValue('hubspot_sync.has_changes', TRUE)
         ->addValue('hubspot_sync.ownership_score', 10)
         ->addValue('hubspot_sync.last_sync_date', date('Y-m-d H:i:s', strtotime('last week')))
         ->addWhere('id', '=', $contact_id)
@@ -215,11 +209,6 @@ class SyncContactsTest extends TestBase {
     );
 
     foreach (self::loadAllContacts(['*', 'hubspot_sync.*']) as $contact) {
-      $this->assertFalse(
-        $contact['hubspot_sync.has_changes'],
-        'The "has_changes" flag should have been reset'
-      );
-
       $this->assertEquals(
         self::OWNER_IDENTIFIER,
         $contact['hubspot_sync.owned_by'],
@@ -239,9 +228,10 @@ class SyncContactsTest extends TestBase {
         'The timestamp of the last sync should have been updated'
       );
 
-      $this->assertFalse(
-        $contact['hubspot_sync.last_sync_failed'],
-        'The "last_sync_failed" flag should be set to FALSE'
+      $this->assertEquals(
+        'successful',
+        $contact['hubspot_sync.sync_status'],
+        'The "sync_status" should be set to "successful"'
       );
 
       $this->assertEquals(
@@ -342,11 +332,6 @@ class SyncContactsTest extends TestBase {
       'The returned HubSpot contact ID should have been saved'
     );
 
-    $this->assertFalse(
-      $contact['hubspot_sync.has_changes'],
-      'The "has_changes" flag should have been reset'
-    );
-
     $this->assertEquals(
       'BG',
       $contact['hubspot_sync.owned_by'],
@@ -366,9 +351,10 @@ class SyncContactsTest extends TestBase {
       'The timestamp of the last sync should have been updated'
     );
 
-    $this->assertFalse(
-      $contact['hubspot_sync.last_sync_failed'],
-      'The "last_sync_failed" flag should be set to FALSE'
+    $this->assertEquals(
+      'successful',
+      $contact['hubspot_sync.sync_status'],
+      'The "sync_status" should be set to "successful"'
     );
 
     $this->assertEquals(
@@ -491,11 +477,6 @@ class SyncContactsTest extends TestBase {
 
     $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
 
-    $this->assertFalse(
-      $contact['hubspot_sync.has_changes'],
-      'The "has_changes" flag should have been reset'
-    );
-
     $this->assertEquals(
       self::OWNER_IDENTIFIER,
       $contact['hubspot_sync.owned_by'],
@@ -515,9 +496,10 @@ class SyncContactsTest extends TestBase {
       'The timestamp of the last sync should have been updated'
     );
 
-    $this->assertFalse(
-      $contact['hubspot_sync.last_sync_failed'],
-      'The "last_sync_failed" flag should be set to FALSE'
+    $this->assertEquals(
+      'successful',
+      $contact['hubspot_sync.sync_status'],
+      'The "sync_status" should be set to "successful"'
     );
 
     $this->assertEquals(
@@ -539,8 +521,7 @@ class SyncContactsTest extends TestBase {
 
     Api4\Contact::update(FALSE)
       ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
-        ->addValue('hubspot_sync.has_changes', TRUE)
-        ->addValue('hubspot_sync.last_sync_date', date('Y-m-d H:i:s', strtotime('last week')))
+      ->addValue('hubspot_sync.last_sync_date', date('Y-m-d H:i:s', strtotime('last week')))
       ->addWhere('id', '=', $contact_id)
       ->execute();
 
@@ -571,11 +552,6 @@ class SyncContactsTest extends TestBase {
 
     $contact = self::loadSingleContact($contact_id, ['*', 'hubspot_sync.*']);
 
-    $this->assertFalse(
-      $contact['hubspot_sync.has_changes'],
-      'The "has_changes" flag should have been reset'
-    );
-
     $this->assertEqualsWithDelta(
       time(),
       strtotime($contact['hubspot_sync.last_sync_date']),
@@ -583,9 +559,10 @@ class SyncContactsTest extends TestBase {
       'The timestamp of the last sync should have been updated'
     );
 
-    $this->assertTrue(
-      $contact['hubspot_sync.last_sync_failed'],
-      'The "last_sync_failed" flag should be set to TRUE'
+    $this->assertEquals(
+      'failed',
+      $contact['hubspot_sync.sync_status'],
+      'The "sync_status" should be set to "failed"'
     );
 
     $this->assertEquals(

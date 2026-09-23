@@ -5,11 +5,7 @@ use Civi\Api4;
 trait CRM_Hubspot_UpdateContactSyncTableTrait {
 
   private static function updateSyncRecord(array $record): void {
-    $assignments = [
-      'has_changes = 0',
-      'last_sync_date = CURRENT_TIMESTAMP',
-    ];
-
+    $assignments = ['last_sync_date = CURRENT_TIMESTAMP'];
     $params = [];
     $i = 0;
 
@@ -29,9 +25,9 @@ trait CRM_Hubspot_UpdateContactSyncTableTrait {
           break;
         }
 
-        case 'last_sync_failed': {
-          $assignments[] = "last_sync_failed = %$i";
-          $params[$i] = [(int) $value, 'Integer'];
+        case 'sync_status': {
+          $assignments[] = "sync_status = NULLIF(%$i, '')";
+          $params[$i] = [$value ?? '', 'String'];
           break;
         }
 

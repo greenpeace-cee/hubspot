@@ -37,6 +37,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Initial (unsynced)'),
         'name' => 'initial',
+        'value' => 'initial',
         'is_default' => TRUE,
         'description' => E::ts('The entity has not yet been synced to HubSpot'),
       ],
@@ -57,6 +58,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Successful'),
         'name' => 'successful',
+        'value' => 'successful',
         'description' => E::ts('The entity has been successfully synced to HubSpot'),
       ],
       'match' => [
@@ -76,6 +78,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Failed'),
         'name' => 'failed',
+        'value' => 'failed',
         'description' => E::ts('The last sync attempt has failed'),
       ],
       'match' => [
@@ -95,6 +98,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Changed'),
         'name' => 'changed',
+        'value' => 'changed',
         'description' => E::ts('The entity has been changed since the last sync'),
       ],
       'match' => [
@@ -114,6 +118,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Deleted'),
         'name' => 'deleted',
+        'value' => 'deleted',
         'description' => E::ts('The entity has been deleted'),
       ],
       'match' => [
@@ -133,6 +138,7 @@ return [
         'option_group_id.name' => 'sync_status',
         'label' => E::ts('Merged'),
         'name' => 'merged',
+        'value' => 'merged',
         'description' => E::ts('The entity has been merged'),
       ],
       'match' => [

@@ -52,7 +52,7 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
           'entity_id'         => $civicrm_id,
           'hubspot_id'        => $hubspot_id,
           'owned_by'          => $owned_by,
-          'last_sync_failed'  => FALSE,
+          'sync_status'       => 'successful',
           'last_sync_payload' => $sync_payload,
         ]);
       } catch (Exception $exception) {
@@ -63,7 +63,7 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
 
         self::updateSyncRecord([
           'entity_id'         => $civicrm_id,
-          'last_sync_failed'  => TRUE,
+          'sync_status'       => 'failed',
           'last_sync_payload' => $sync_payload,
         ]);
       }
@@ -87,7 +87,7 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
         'entity_id'         => $result_item['properties']['civicrm_id'],
         'hubspot_id'        => $hubspot_id,
         'owned_by'          => self::hubspotAccount()['owner_identifier'],
-        'last_sync_failed'  => FALSE,
+        'sync_status'       => 'successful',
         'last_sync_payload' => $sync_payload,
       ]);
     }
@@ -106,7 +106,7 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
 
             self::updateSyncRecord([
               'entity_id'         => $sync_payload['civicrm_id'],
-              'last_sync_failed'  => TRUE,
+              'sync_status'       => 'failed',
               'last_sync_payload' => $sync_payload,
             ]);
           }

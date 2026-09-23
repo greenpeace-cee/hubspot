@@ -92,7 +92,7 @@ class CRM_Hubspot_ApiClient {
   }
 
   public static function mergeContacts(string $primary_id, string $duplicate_id): Response {
-    return self::request('POST', '/crm/v3/objects/contacts/gdpr-delete', [
+    return self::request('POST', '/crm/objects/2026-03/contacts/merge', [
       'json' => [
         'primaryObjectId' => $primary_id,
         'objectIdToMerge' => $duplicate_id,

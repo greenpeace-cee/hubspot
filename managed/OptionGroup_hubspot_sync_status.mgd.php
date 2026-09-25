@@ -4,14 +4,14 @@ use CRM_Hubspot_ExtensionUtil as E;
 
 return [
   [
-    'name' => 'OptionGroup_sync_status',
+    'name' => 'OptionGroup_hubspot_sync_status',
     'entity' => 'OptionGroup',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'name' => 'sync_status',
+        'name' => 'hubspot_sync_status',
         'title' => E::ts('HubSpot Sync Status'),
         'description' => E::ts('Status of the sync to HubSpot'),
         'data_type' => 'String',
@@ -27,14 +27,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_initial',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_initial',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Initial (unsynced)'),
         'name' => 'initial',
         'value' => 'initial',
@@ -48,14 +48,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_successful',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_successful',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Successful'),
         'name' => 'successful',
         'value' => 'successful',
@@ -68,14 +68,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_failed',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_failed',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Failed'),
         'name' => 'failed',
         'value' => 'failed',
@@ -88,14 +88,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_changed',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_changed',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Changed'),
         'name' => 'changed',
         'value' => 'changed',
@@ -108,14 +108,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_deleted',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_deleted',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Deleted'),
         'name' => 'deleted',
         'value' => 'deleted',
@@ -128,14 +128,14 @@ return [
     ],
   ],
   [
-    'name' => 'OptionGroup_sync_status_OptionValue_merged',
+    'name' => 'OptionGroup_hubspot_sync_status_OptionValue_merged',
     'entity' => 'OptionValue',
     'cleanup' => 'never',
     'update' => 'always',
     'params' => [
       'version' => 4,
       'values' => [
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'label' => E::ts('Merged'),
         'name' => 'merged',
         'value' => 'merged',

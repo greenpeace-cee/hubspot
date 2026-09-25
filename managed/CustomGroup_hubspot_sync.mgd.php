@@ -127,7 +127,7 @@ return [
         'column_name' => 'sync_status',
         'data_type' => 'String',
         'html_type' => 'Autocomplete-Select',
-        'option_group_id.name' => 'sync_status',
+        'option_group_id.name' => 'hubspot_sync_status',
         'is_view' => TRUE,
       ],
       'match' => [

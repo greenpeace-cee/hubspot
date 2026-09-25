@@ -54,9 +54,7 @@ class DeleteContact extends AutoSubscriber {
       'domainId'  => 1,
     ];
 
-    $queue->createItem($queue_task, [
-      'release_time' => date('YmdHis', strtotime('+7 days')),
-    ]);
+    $queue->createItem($queue_task, [ 'release_time' => strtotime('+7 days') ]);
   }
 
   public static function deleteHubspotContact(CRM_Queue_TaskContext $_context, int $contact_id): bool {

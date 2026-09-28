@@ -34,7 +34,9 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
         $primary_email_owner = empty($email) ? NULL : self::getContactByEmail($email);
 
         if (isset($primary_email_owner)) {
-          $local_contact_score = (int) $batch_item['properties']['ownership_score'];
+          unset($sync_payload['email']);
+          $owned_by = $primary_email_owner['properties']['owned_by'] ?? NULL;
+          /*$local_contact_score = (int) $batch_item['properties']['ownership_score'];
           $primary_owner_score = (int) $primary_email_owner['properties']['ownership_score'];
 
           if ($local_contact_score > $primary_owner_score) {
@@ -42,7 +44,7 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
           } else {
             unset($sync_payload['email']);
             $owned_by = $primary_email_owner['properties']['owned_by'];
-          }
+          }*/
         }
 
         $hubspot_contact = json_decode((string) ApiClient::createContact($sync_payload)->getBody(), TRUE);

@@ -148,6 +148,11 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         foreach ($item['changes'] as $change) {
           $event_id = $change['causedByEvent']['id'];
 
+          if (empty($events[$event_id])) {
+            \Civi::log('hubspot-sync')->warning('Found subscription timeline event change record without corresponding subscription status change event: ' . json_encode($change));
+            continue;
+          }
+
           $events[$event_id] += [
             'hubspot_subscription_id' => $change['subscriptionId'],
             'change'                  => $change['change'],

@@ -35,7 +35,9 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
         $primary_email_owner = empty($email) ? NULL : self::getContactByEmail($email);
 
         if (isset($primary_email_owner) && $primary_email_owner['id'] != $hubspot_id) {
-          $local_contact_score = (int) $batch_item['properties']['ownership_score'];
+          unset($sync_payload['email']);
+          $owned_by = $primary_email_owner['properties']['owned_by'] ?? NULL;
+          /*$local_contact_score = (int) $batch_item['properties']['ownership_score'];
           $primary_owner_score = (int) $primary_email_owner['properties']['ownership_score'];
 
           if ($local_contact_score > $primary_owner_score) {
@@ -43,7 +45,7 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
           } else {
             unset($sync_payload['email']);
             $owned_by = $primary_email_owner['properties']['owned_by'];
-          }
+          }*/
         }
 
         ApiClient::updateContact($hubspot_id, $sync_payload);

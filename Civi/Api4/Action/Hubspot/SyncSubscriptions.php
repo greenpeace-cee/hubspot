@@ -2,6 +2,7 @@
 
 namespace Civi\Api4\Action\Hubspot;
 
+use Civi;
 use Civi\Api4;
 use CRM_Core_Session as Session;
 use CRM_Hubspot_ApiClient as ApiClient;
@@ -36,6 +37,11 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       $contact_id = self::resolveHubspotContactId($event['hubspot_contact_id']);
 
       if (is_null($contact_id)) continue;
+
+      if (!isset($event['hubspot_subscription_id'])) {
+        Civi::log('hubspot-sync')->warning('No subscription ID found for event: ' . json_encode($event));
+        continue;
+      }
 
       $subscription_id = self::resolveHubspotSubscriptionId($event['hubspot_subscription_id']);
 
@@ -83,6 +89,35 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     $subscription_updater->flush();
   }
 
+  private static function getChangeEvents(int $earliest_time, int $latest_time): array {
+    $change_events = [];
+    $has_more = TRUE;
+    $offset = NULL;
+
+    while ($has_more) {
+      $timeline_response = ApiClient::getSubscriptionsTimeline([
+        'startTimestamp' => $earliest_time,
+        'endTimestamp'   => $latest_time,
+        'offset'         => $offset,
+        'limit'          => 1000,
+      ]);
+
+      $timeline_response_body = json_decode((string) $timeline_response->getBody(), TRUE);
+      $has_more = $timeline_response_body['hasMore'];
+      $offset = $timeline_response_body['offset'];
+      $timeline = $timeline_response_body['timeline'];
+
+      foreach ($timeline as $item) {
+        foreach ($item['changes'] as $change) {
+          $event_id = $change['causedByEvent']['id'];
+          $change_events[$event_id] = $change;
+        }
+      }
+    }
+
+    return $change_events;
+  }
+
   private static function getRecentSubscriptionChanges(DateTimeImmutable $from) {
     $page_size = 100;
     $offset = 0;
@@ -123,36 +158,30 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       ]);
 
       $event_page = json_decode((string) $events_result->getBody(), TRUE);
-      $results = $event_page['results'];
+      $event_results = $event_page['results'];
 
-      if (empty($results)) break;
+      if (empty($event_results)) break;
 
-      $latest_time = self::toTimestampMilliseconds(end($results)['occurredAt']);
-      $earliest_time = self::toTimestampMilliseconds(reset($results)['occurredAt']);
-
-      $events = array_reduce(
-        $results,
-        fn ($events, $event) => $events + [
-          $event['id'] => [
-            'hubspot_contact_id' => $event['objectId'],
-            'date'               => $event['occurredAt'],
-          ],
+      $events = array_map(
+        fn ($event) => [
+          'id'                 => $event['id'],
+          'hubspot_contact_id' => $event['objectId'],
+          'date'               => $event['occurredAt'],
         ],
-        []
+        $event_results
       );
 
-      $timeline_response = ApiClient::getSubscriptionsTimeline($earliest_time, $latest_time);
-      $timeline = json_decode((string) $timeline_response->getBody(), TRUE)['timeline'];
+      $latest_time = self::toTimestampMilliseconds(end($events)['date']);
+      $earliest_time = self::toTimestampMilliseconds(reset($events)['date']);
+      $change_events = self::getChangeEvents($earliest_time, $latest_time);
 
-      foreach ($timeline as $item) {
-        foreach ($item['changes'] as $change) {
-          $event_id = $change['causedByEvent']['id'];
+      foreach ($events as &$event) {
+        $event_id = $event['id'];
 
-          $events[$event_id] += [
-            'hubspot_subscription_id' => $change['subscriptionId'],
-            'change'                  => $change['change'],
-          ];
-        }
+        if (!isset($change_events[$event_id])) continue;
+
+        $event['hubspot_subscription_id'] = $change_events[$event_id]['subscriptionId'];
+        $event['change'] = $change_events[$event_id]['change'];
       }
 
       $contacts_response = ApiClient::batchGetContacts(

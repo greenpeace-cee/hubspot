@@ -82,12 +82,14 @@ class CRM_Hubspot_ApiClient {
     return self::request('GET', '/communication-preferences/v3/definitions');
   }
 
-  public static function getSubscriptionsTimeline(int $start, int $end): Response {
+  public static function getSubscriptionsTimeline(array $parameters = []): Response {
     return self::request('GET', '/email/public/v1/subscriptions/timeline', [
-      'query' => [
-        'startTimestamp' => $start,
-        'endTimestamp'   => $end,
-      ],
+      'query' => array_filter([
+        'startTimestamp' => $parameters['startTimestamp'] ?? NULL,
+        'endTimestamp'   => $parameters['endTimestamp'] ?? NULL,
+        'offset'         => $parameters['offset'] ?? NULL,
+        'limit'          => $parameters['limit'] ?? NULL,
+      ]),
     ]);
   }
 

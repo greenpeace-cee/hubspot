@@ -76,6 +76,14 @@ return [
       'default' => 'CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP',
     ],
   ],
-  'getIndices' => fn() => [],
+  'getIndices' => fn() => [
+    'index_unique_contact_id_subscription_id' => [
+      'fields' => [
+        'contact_id' => TRUE,
+        'subscription_id' => TRUE,
+      ],
+      'unique' => TRUE,
+    ],
+  ],
   'getPaths' => fn() => [],
 ];

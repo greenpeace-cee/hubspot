@@ -55,6 +55,14 @@ return [
       'input_type' => 'Text',
       'required' => FALSE,
     ],
+    'is_reserved' => [
+      'title' => E::ts('Is Reserved?'),
+      'description' => E::ts('Can users (un)subscribe contacts?'),
+      'data_type' => 'Boolean',
+      'sql_type' => 'tinyint',
+      'input_type' => 'CheckBox',
+      'required' => FALSE,
+    ],
     'created_date' => [
       'title' => E::ts('Created Date'),
       'description' => E::ts('Date of creation'),

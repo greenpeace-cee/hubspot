@@ -61,7 +61,8 @@ return [
       'data_type' => 'Boolean',
       'sql_type' => 'tinyint',
       'input_type' => 'CheckBox',
-      'required' => FALSE,
+      'required' => TRUE,
+      'default' => FALSE,
     ],
     'created_date' => [
       'title' => E::ts('Created Date'),

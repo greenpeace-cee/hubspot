@@ -16,6 +16,14 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
   const SUBSCRIPTION_STATUS_EVENT = 'e_updated_email_subscription_status_v2';
 
+  /**
+   * Send Subscription changes to HubSpot (default, FALSE), or just apply changes from HubSpot locally?
+   * Useful during testing
+   *
+   * @var bool
+   */
+  protected bool $skipApiWrites = FALSE;
+
   private static array $hubspotSubscriptionDefinitions;
   private static array $subscriptions;
 
@@ -70,12 +78,19 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     foreach (self::getRecentSubscriptionChanges($from) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';
 
-      $subscription_updater->add([
+      $update = [
         'channel'            => 'EMAIL',
         'subscriberIdString' => $contact_subscription['email'],
         'subscriptionId'     => $contact_subscription['subscription'],
         'statusState'        => $status,
-      ]);
+      ];
+      if (!$this->skipApiWrites) {
+        $subscription_updater->add($update);
+      }
+      else {
+        Civi::log('hubspot-sync')->info('Subscription change (not sent due to skipApiWrites): ' . json_encode($update));
+      }
+
 
       $result['sent']++;
     }

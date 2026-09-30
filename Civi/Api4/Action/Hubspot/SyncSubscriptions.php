@@ -53,9 +53,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
       $subscription_id = self::resolveHubspotSubscriptionId($event['hubspot_subscription_id']);
 
-      if (is_null($subscription_id)) {
-        $subscription_id = self::importSubscription($event['hubspot_subscription_id']);
-      }
+      if (is_null($subscription_id)) continue;
 
       if (in_array($event['change'], ['SUBSCRIBED', 'UNSUBSCRIBED'])) {
           $status = $event['change'] === 'SUBSCRIBED' ? 'opt_in' : 'opt_out';
@@ -221,25 +219,6 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       if (!isset($event_page['paging']['next'])) break;
 
       $page = $event_page['paging']['next']['after'] ?? '';
-    }
-  }
-
-  private static function importSubscription(string $hubspot_subscription_id): int {
-    if (!isset(self::$hubspotSubscriptionDefinitions)) {
-      $response = ApiClient::getSubscriptionDefinitions();
-      self::$hubspotSubscriptionDefinitions = json_decode((string) $response->getBody(), TRUE)['subscriptionDefinitions'];
-    }
-
-    foreach (self::$hubspotSubscriptionDefinitions as $subscription) {
-      if ($subscription['id'] !== $hubspot_subscription_id) continue;
-
-       return (int) Api4\Subscription::create(FALSE)
-        ->addValue('hubspot_id',  $hubspot_subscription_id)
-        ->addValue('name',        strtolower(preg_replace('/[^\w]+/', '_', $subscription['name'])))
-        ->addValue('title',       $subscription['name'])
-        ->addValue('description', $subscription['description'])
-        ->execute()
-        ->first()['id'];
     }
   }
 

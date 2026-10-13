@@ -77,6 +77,34 @@ class MockResponses {
 
   public static function batchGetContacts(int $status_code, array $parameters = []): Response {
     switch ($status_code) {
+      case 200: {
+        return new Response(
+          200,
+          [ 'Content-Type' => 'application/json' ],
+          json_encode([
+            'status'      => 'COMPLETE',
+            'startedAt'   => date('Y-m-d\\TH:i:s.vp'),
+            'completedAt' => date('Y-m-d\\TH:i:s.vp'),
+            'results'     => array_map(
+              fn ($contact) => [
+                'id'         => $contact['hubspot_id'],
+                'properties' => [
+                  'hs_object_id'      => $contact['hubspot_id'],
+                  'email'             => $contact['email'],
+                  'createdate'        => date('Y-m-d\\TH:i:s.vp', strtotime('1 month ago')),
+                  'lastmodified_date' => date('Y-m-d\\TH:i:s.vp', strtotime('2 weeks ago')),
+                  'createdAt'         => date('Y-m-d\\TH:i:s.vp', strtotime('1 month ago')),
+                  'updatedAt'         => date('Y-m-d\\TH:i:s.vp', strtotime('2 weeks ago')),
+                  'archived'          => FALSE,
+                  'url'               => "https://api.hubapi.test/148955603/record/0-1/{$contact['hubspot_id']}",
+                ],
+              ],
+              $parameters['contacts']
+            ),
+          ])
+        );
+      }
+
       default: {
         return new Response($status_code);
       }
@@ -189,28 +217,31 @@ class MockResponses {
         return new Response(
           200,
           [ 'Content-Type' => 'application/json' ],
-          json_encode(array_map(
-            fn ($event) => [
-              'objectType' => 'Contact',
-              'objectId'   => $event['object_id'],
-              'eventType'  => 'e_updated_email_subscription_status_v2',
-              'occurredAt' => $event['timestamp']->format('Y-m-d\\TH:i:s.vp'),
-              'id'         => $event['id'] ?? self::generateUUID(),
-              'properties' => [
-                'hs_user_agent'                        => '',
-                'hs_recipient_type'                    => 'UNKNOWN',
-                'hs_historical_contact_lifecyclestage' => 'lead',
-                'hs_device_type'                       => '',
-                'hs_app_id'                            => '0',
-                'hs_type'                              => 'UPDATED_SUBSCRIPTION',
-                'hs_is_marketing_email'                => 'false',
-                'hs_app_name'                          => '',
-                'hs_email_campaign_id'                 => '0',
-                'hs_subscription_unsubscribe'          => $event['change'] === 'SUBSCRIBED' ? 'false' : 'true',
+          json_encode([
+            'paging'  => [],
+            'results' => array_map(
+              fn ($event) => [
+                'id'         => $event['id'] ?? self::generateUUID(),
+                'eventType'  => $event['type'],
+                'objectType' => 'Contact',
+                'objectId'   => $event['object_id'],
+                'occurredAt' => date('Y-m-d\\TH:i:s.vp', $event['timestamp']),
+                'properties' => [
+                  'hs_user_agent'                        => '',
+                  'hs_recipient_type'                    => 'UNKNOWN',
+                  'hs_historical_contact_lifecyclestage' => 'lead',
+                  'hs_device_type'                       => '',
+                  'hs_app_id'                            => '0',
+                  'hs_type'                              => 'UPDATED_SUBSCRIPTION',
+                  'hs_is_marketing_email'                => 'false',
+                  'hs_app_name'                          => '',
+                  'hs_email_campaign_id'                 => '0',
+                  'hs_subscription_unsubscribe'          => $event['change'] === 'SUBSCRIBED' ? 'false' : 'true',
+                ],
               ],
-            ],
-            $parameters['events'] ?? []
-          ))
+              $parameters['events'] ?? []
+            ),
+          ]),
         );
       }
 
@@ -230,23 +261,25 @@ class MockResponses {
             'hasMore' => FALSE,
             'offset' => self::generateRandomString(20),
             'timeline' => array_map(
-              fn ($event) => [
-                'timestamp'         => (float) $event['timestamp']->format('U.v') * 1000,
-                'recipient'         => $event['email'],
+              fn ($item) => [
+                'timestamp'         => (float) date('U.v', $item['timestamp']) * 1000,
+                'recipient'         => $item['email'],
                 'normalizedEmailId' => self::generateUUID(),
                 'portalId'          => self::PORTAL_ID,
                 'changes' => [
-                  'subscriptionId' => $event['subscription_id'],
-                  'changeType'     => 'SUBSCRIPTION_STATUS',
-                  'source'         => 'SOURCE_PUBLIC_API',
-                  'change'         => $event['change'],
-                  'causedByEvent'  => [
-                    'id'      => $event['id'],
-                    'created' => (float) $event['timestamp']->format('U.v') * 1000,
+                  [
+                    'subscriptionId' => $item['subscription_id'],
+                    'changeType'     => 'SUBSCRIPTION_STATUS',
+                    'source'         => 'SOURCE_PUBLIC_API',
+                    'change'         => $item['change'],
+                    'causedByEvent'  => [
+                      'id'      => $item['event_id'],
+                      'created' => (float) date('U.v', $item['timestamp']) * 1000,
+                    ],
                   ],
                 ],
               ],
-              $parameters['events'] ?? []
+              $parameters['items'] ?? []
             )
           ]),
         );

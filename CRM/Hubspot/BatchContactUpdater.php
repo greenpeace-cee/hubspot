@@ -121,16 +121,9 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
     try {
       $response = ApiClient::batchUpdateContacts($batch);
 
-      if (in_array($response->getStatusCode(), [200, 201, 207])) {
-        self::onSuccess($batch, $response);
-      } else {
-        Civi::log('hubspot-sync')->error('Received unexpected response status code: ' . $response->getStatusCode(), [
-          'request'  => $request,
-          'response' => $response,
-        ]);
+      if (!in_array($response->getStatusCode(), [200, 201, 207])) return FALSE;
 
-        return FALSE;
-      }
+      self::onSuccess($batch, $response);
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
       $response = $exception->getResponse();
       $status_code = $response->getStatusCode();

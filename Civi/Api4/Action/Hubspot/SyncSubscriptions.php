@@ -82,13 +82,12 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         'subscriptionId'     => $contact_subscription['subscription'],
         'statusState'        => $status,
       ];
+
       if (!$this->skipApiWrites) {
         $subscription_updater->add($update);
-      }
-      else {
+      } else {
         Civi::log('hubspot-sync')->info('Subscription change (not sent due to skipApiWrites): ' . json_encode($update));
       }
-
 
       $result['sent']++;
     }
@@ -188,13 +187,13 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       $earliest_time = self::toTimestampMilliseconds(reset($events)['date']);
       $change_events = self::getChangeEvents($earliest_time, $latest_time);
 
-      foreach ($events as &$event) {
+      foreach ($events as $i => $event) {
         $event_id = $event['id'];
 
         if (!isset($change_events[$event_id])) continue;
 
-        $event['hubspot_subscription_id'] = $change_events[$event_id]['subscriptionId'];
-        $event['change'] = $change_events[$event_id]['change'];
+        $events[$i]['hubspot_subscription_id'] = $change_events[$event_id]['subscriptionId'];
+        $events[$i]['change'] = $change_events[$event_id]['change'];
       }
 
       $contacts_response = ApiClient::batchGetContacts(

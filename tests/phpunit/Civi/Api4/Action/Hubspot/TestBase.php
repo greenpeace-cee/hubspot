@@ -9,6 +9,7 @@ use Civi\Test\CiviEnvBuilder;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
+use CRM_Core_Session;
 use CRM_Hubspot_ApiClient;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
@@ -17,16 +18,11 @@ use PHPUnit\Framework\TestCase;
 
 class TestBase extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
 
-  const HUBSPOT_ACCOUNT_ID = 19946500;
   const OWNER_IDENTIFIER = 'AT';
 
   private static array $_contactIds;
   private static array $_historyContainer;
   protected static MockHandler $mockHandler;
-
-  public function setUpHeadless(): CiviEnvBuilder {
-    return Test::headless()->installMe(__DIR__)->apply();
-  }
 
   public static function setUpBeforeClass(): void {
     Test::headless()->installMe(__DIR__)->apply(TRUE);
@@ -36,10 +32,10 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
     $history_mw = Middleware::history(self::$_historyContainer);
     $handler_stack = HandlerStack::create(self::$mockHandler);
     $handler_stack->push($history_mw);
-    CRM_Hubspot_ApiClient::$handlerStack = $handler_stack;
+    CRM_Hubspot_ApiClient::setHandlerStack($handler_stack);
 
     Api4\HubspotAccount::create(FALSE)
-      ->addValue('account_id', self::HUBSPOT_ACCOUNT_ID)
+      ->addValue('account_id', 148955603)
       ->addValue('name', 'Test account GPCEE')
       ->addValue('base_uri', 'https://api.hubapi.test')
       ->addValue('api_key', 'pat-abc-00000000-1111-2222-3333-444444444444')
@@ -49,16 +45,25 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
 
     foreach (range(1, 10) as $i) {
       self::$_contactIds[] = (int) Api4\Contact::create(FALSE)
-        ->addValue('contact_type',                   'Individual')
-        ->addValue('first_name',                     'Contact')
-        ->addValue('last_name',                      "#$i")
-        ->addValue('birth_date',                     date('Y-m-d', random_int(0, pow(10, 9))))
-        ->addValue('hubspot_sync.email',             "contact-$i@example.org")
-        ->addValue('hubspot_sync.owned_by',          self::OWNER_IDENTIFIER)
+        ->addValue('contact_type',          'Individual')
+        ->addValue('first_name',            'Contact')
+        ->addValue('last_name',             "#$i")
+        ->addValue('birth_date',            date('Y-m-d', random_int(0, pow(10, 9))))
+        ->addValue('hubspot_sync.email',    "contact-$i@example.org")
+        ->addValue('hubspot_sync.owned_by', self::OWNER_IDENTIFIER)
         ->execute()
         ->first()['id'];
     }
+  }
 
+  public function setUpHeadless(): CiviEnvBuilder {
+    return Test::headless()->installMe(__DIR__)->apply();
+  }
+
+  public function setUp(): void {
+    parent::setUp();
+
+    CRM_Core_Session::singleton()->set('userID', 1);
   }
 
   public function tearDown(): void {

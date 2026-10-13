@@ -12,6 +12,8 @@ use GuzzleHttp\Psr7\Response;
 class SyncContactsTest extends TestBase {
 
   public function setUp(): void {
+    parent::setUp();
+
     foreach (self::loadAllContacts(['id']) as $contact) {
       Api4\Contact::update(FALSE)
         ->addValue('hubspot_sync.hubspot_id',        NULL)

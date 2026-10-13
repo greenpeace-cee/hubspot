@@ -1,6 +1,5 @@
 <?php
 
-use Civi\Api4;
 use GuzzleHttp\Client;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\MessageFormatter;
@@ -13,9 +12,8 @@ class CRM_Hubspot_ApiClient {
 
   const LOG_MESSAGE_TEMPLATE = "\n\nRequest: {method} {uri}\n{req_body}\n\nResponse: {code} {phrase}\n{res_body}\n\nError: {error}";
 
-  public static HandlerStack $handlerStack;
-
-  private static Client $_client;
+  private static /* Client|null */ $_client;
+  private static HandlerStack $_handlerStack;
 
   public static function batchCreateContacts(array $contacts_batch): Response {
     return self::request('POST', '/crm/v3/objects/contacts/batch/create', [
@@ -112,19 +110,19 @@ class CRM_Hubspot_ApiClient {
     if (!isset(self::$_client)) {
       $config = self::hubspotAccount();
 
-      if (!isset(self::$handlerStack)) {
-        self::$handlerStack = HandlerStack::create();
+      if (!isset(self::$_handlerStack)) {
+        self::$_handlerStack = HandlerStack::create();
 
         $logger = Middleware::log(
           Civi::log('hubspot-sync'),
           new MessageFormatter(self::LOG_MESSAGE_TEMPLATE)
         );
 
-        self::$handlerStack->push($logger);
+        self::$_handlerStack->push($logger);
       }
 
       self::$_client = new Client([
-        'handler'  => self::$handlerStack,
+        'handler'  => self::$_handlerStack,
         'base_uri' => $config['base_uri'],
       ]);
     }
@@ -145,6 +143,11 @@ class CRM_Hubspot_ApiClient {
     ]);
 
     return self::client()->request($method, $endpoint, $options);
+  }
+
+  public static function setHandlerStack(HandlerStack $handler_stack): void {
+    self::$_handlerStack = $handler_stack;
+    self::$_client = NULL;
   }
 
 }

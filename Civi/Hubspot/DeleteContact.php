@@ -37,7 +37,7 @@ class DeleteContact extends AutoSubscriber {
     $queue = Civi::queue('hubspot-sync-delete-contacts', [
       'type'           => 'SqlParallel',
       'runner'         => 'task',
-      'reset'          => TRUE,
+      'reset'          => FALSE,
       'retry_interval' => 2,
       'retry_limit'    => 2,
       'error'          => 'delete',

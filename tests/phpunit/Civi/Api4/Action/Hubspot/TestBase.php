@@ -10,15 +10,12 @@ use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
 use CRM_Hubspot_ApiClient;
-use CRM_Hubspot_CountryIsoResolverTrait as CountryIsoResolverTrait;
 use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use PHPUnit\Framework\TestCase;
 
 class TestBase extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
-
-  use CountryIsoResolverTrait;
 
   const HUBSPOT_ACCOUNT_ID = 19946500;
   const OWNER_IDENTIFIER = 'AT';

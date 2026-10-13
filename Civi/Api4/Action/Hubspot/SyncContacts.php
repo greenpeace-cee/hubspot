@@ -13,7 +13,6 @@ use Generator;
  */
 class SyncContacts extends Api4\Generic\DAOGetAction {
 
-  use \CRM_Hubspot_CountryIsoResolverTrait;
   use \CRM_Hubspot_LoadHubspotAccountTrait;
 
   public function _run(Api4\Generic\Result $result) {

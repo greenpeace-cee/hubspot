@@ -5,11 +5,8 @@ use GuzzleHttp\Psr7\Response;
 
 class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
 
-  use CRM_Hubspot_CountryIsoResolverTrait;
   use CRM_Hubspot_LoadHubspotAccountTrait;
   use CRM_Hubspot_UpdateContactSyncTableTrait;
-
-  const API_ENDPOINT = '/crm/v3/objects/contacts/batch/create';
 
   private static function getContactByEmail(string $email): ?array {
     try {

@@ -64,7 +64,7 @@ class DeleteContact extends AutoSubscriber {
       ->execute()
       ->first();
 
-    if (!$contact['is_deleted']) return TRUE;
+    if (is_null($contact) || !$contact['is_deleted']) return TRUE;
 
     $merge_delete_count = Api4\Activity::get(FALSE)
       ->selectRowCount()
@@ -73,6 +73,8 @@ class DeleteContact extends AutoSubscriber {
       ->execute();
 
     if ($merge_delete_count->rowCount > 0) return TRUE;
+
+    if (empty($contact['hubspot_sync.hubspot_id'])) return TRUE;
 
     CRM_Hubspot_ApiClient::gdprDeleteContact($contact['hubspot_sync.hubspot_id']);
 

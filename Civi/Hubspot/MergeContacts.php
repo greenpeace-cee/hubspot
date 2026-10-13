@@ -73,11 +73,15 @@ class MergeContacts extends AutoSubscriber {
       ->execute()
       ->first();
 
+    if (empty($primary_contact['hubspot_sync.hubspot_id'])) return TRUE;
+
     $duplicate_contact = Api4\Contact::get(FALSE)
       ->addSelect('hubspot_sync.hubspot_id')
       ->addWhere('id', '=', $duplicate_id)
       ->execute()
       ->first();
+
+    if (empty($duplicate_contact['hubspot_sync.hubspot_id'])) return TRUE;
 
     $merge_response = CRM_Hubspot_ApiClient::mergeContacts(
       $primary_contact['hubspot_sync.hubspot_id'],

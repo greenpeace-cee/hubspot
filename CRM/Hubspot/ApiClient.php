@@ -62,7 +62,7 @@ class CRM_Hubspot_ApiClient {
   }
 
   public static function getContactByEmail(string $email, array $props = []): Response {
-    return self::request('GET', "/crm/v3/objects/contacts/$email", [
+    return self::request('GET', '/crm/v3/objects/contacts/' . rawurlencode($email), [
       'query' => [
         'idProperty' => 'email',
         'properties' => implode(',', $props),

@@ -308,7 +308,7 @@ class SyncContactsTest extends TestBase {
     );
 
     $this->assertEquals(
-      "/crm/v3/objects/contacts/{$contact['hubspot_sync.email']}",
+      '/crm/v3/objects/contacts/' . rawurlencode($contact['hubspot_sync.email']),
       $get_primary_email_owner_req->getUri()->getPath(),
       'Should have sent a request to the HubSpot API get contact endpoint'
     );
@@ -444,7 +444,7 @@ class SyncContactsTest extends TestBase {
     );
 
     $this->assertEquals(
-      "/crm/v3/objects/contacts/{$contact['hubspot_sync.email']}",
+     '/crm/v3/objects/contacts/' . rawurlencode($contact['hubspot_sync.email']),
       $get_primary_email_owner_req->getUri()->getPath(),
       'Should have sent a request to the HubSpot API get contact endpoint'
     );

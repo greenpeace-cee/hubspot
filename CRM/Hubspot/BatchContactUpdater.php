@@ -68,6 +68,8 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
   }
 
   private static function onSuccess(array $batch, Response $response): void {
+    $not_synced = array_reduce($batch, fn ($result, $item) => $result + [ $item['id'] => $item['properties'] ], []);
+
     $response_body = json_decode((string) $response->getBody(), TRUE);
 
     foreach ($response_body['results'] as $result_item) {
@@ -87,30 +89,20 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
         'sync_status'       => 'successful',
         'last_sync_payload' => $sync_payload,
       ]);
+
+      unset($not_synced[$hubspot_id]);
     }
 
-    if (!array_key_exists('errors', $response_body)) return;
+    if (empty($not_synced)) return;
 
-    Civi::log('hubspot-sync')->error('Some contacts could not be synced', $response_body['errors']);
+    Civi::log('hubspot-sync')->error('Some contacts could not be synced:', $not_synced);
 
-    foreach ($response_body['errors'] as $error) {
-      switch ($error['category']) {
-        case 'OBJECT_NOT_FOUND': {
-          foreach ($error['context']['ids'] as $hubspot_id) {
-            $sync_payload = array_reduce($batch,
-              fn ($result, $item) => $item['id'] === $hubspot_id ? $item['properties'] : $result
-            );
-
-            self::updateSyncRecord([
-              'entity_id'         => $sync_payload['civicrm_id'],
-              'sync_status'       => 'failed',
-              'last_sync_payload' => $sync_payload,
-            ]);
-          }
-
-          break;
-        }
-      }
+    foreach ($not_synced as $properties) {
+      self::updateSyncRecord([
+        'entity_id'         => $properties['civicrm_id'],
+        'sync_status'       => 'failed',
+        'last_sync_payload' => $properties,
+      ]);
     }
   }
 

@@ -142,6 +142,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
           'subscription_status:name'
         )
         ->addWhere('modified_date', '>', $from->format('Y-m-d H:i:s'))
+        ->addOrderBy('id', 'ASC')
         ->setLimit($page_size)
         ->setOffset($offset)
         ->execute();

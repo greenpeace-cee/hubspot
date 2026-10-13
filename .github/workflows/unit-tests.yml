@@ -3,7 +3,7 @@ name: "Run unit tests"
 on:
   push:
     branches:
-      - main
+      - master
     tags:
   pull_request:
 
@@ -17,6 +17,7 @@ env:
 
 jobs:
   setup-matrix:
+    if: ${{ !startsWith(github.event.head_commit.message, 'WIP') }}
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.setup-matrix.outputs.matrix }}

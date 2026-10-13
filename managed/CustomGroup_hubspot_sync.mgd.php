@@ -157,6 +157,7 @@ return [
       'values' => [
         'name' => 'hubspot_sync',
         'title' => E::ts('HubSpot Sync'),
+        'table_name' => 'civicrm_value_hubspot_sync',
         'extends' => 'Individual',
         'collapse_display' => TRUE,
         'collapse_adv_display' => TRUE,

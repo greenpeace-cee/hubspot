@@ -7,6 +7,7 @@ use Civi\Api4;
 use CRM_Core_Session as Session;
 use CRM_Hubspot_ApiClient as ApiClient;
 use CRM_Hubspot_BatchSubscriptionUpdater as BatchSubscriptionUpdater;
+use CRM_Hubspot_SyncGuard;
 use DateTimeImmutable;
 
 /**
@@ -27,10 +28,16 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
   private static array $hubspotSubscriptionDefinitions;
   private static array $subscriptions;
 
+  const QUEUE = 'hubspot-sync-subscriptions';
+
   public function _run(Api4\Generic\Result $result) {
     $result['received'] = 0;
     $result['sent'] = 0;
 
+    CRM_Hubspot_SyncGuard::run('sync-subscriptions', [self::QUEUE], fn () => $this->sync($result));
+  }
+
+  private function sync(Api4\Generic\Result $result): void {
     $latest_sync_activity = Api4\Activity::get(FALSE)
       ->addSelect('activity_date_time')
       ->addWhere('activity_type_id:name', '=', 'hubspot_subscription_sync')
@@ -71,7 +78,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       }
     }
 
-    $subscription_updater = new BatchSubscriptionUpdater([ 'queue_name' => 'hubspot-sync-subscriptions' ]);
+    $subscription_updater = new BatchSubscriptionUpdater([ 'queue_name' => self::QUEUE ]);
 
     foreach (self::getRecentSubscriptionChanges($from) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';

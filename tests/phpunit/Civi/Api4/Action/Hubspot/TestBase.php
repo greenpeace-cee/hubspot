@@ -64,6 +64,10 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
     parent::setUp();
 
     CRM_Core_Session::singleton()->set('userID', 1);
+
+    // Sync actions fail while their queues hold items. Running a queue commits
+    // (due to a LOCK TABLES in SqlParallel::claimItems), so items can outlive their test.
+    \CRM_Core_DAO::executeQuery("DELETE FROM civicrm_queue_item WHERE queue_name LIKE 'hubspot-%'");
   }
 
   public function tearDown(): void {

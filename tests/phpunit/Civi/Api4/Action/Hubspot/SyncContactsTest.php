@@ -40,6 +40,30 @@ class SyncContactsTest extends TestBase {
     ];
   }
 
+  public function testSyncFailsWhileQueueIsNotEmpty(): void {
+    $params = [
+      'select' => [ 'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id', 'CONCAT(hubspot_sync.email) AS email' ],
+      'where' => [ ['contact_type', '=', 'Individual'] ],
+      'checkPermissions' => FALSE,
+    ];
+
+    $first = (array) civicrm_api4('Hubspot', 'syncContacts', $params);
+    $this->assertGreaterThan(0, $first['scheduledForCreate']);
+
+    $queued = \CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = 'hubspot-sync-create-contacts'");
+    $this->assertGreaterThan(0, $queued);
+
+    try {
+      civicrm_api4('Hubspot', 'syncContacts', $params);
+      $this->fail('A second sync with unprocessed queue items should fail');
+    } catch (\CRM_Core_Exception $e) {
+      $this->assertStringContainsString('still has unprocessed items', $e->getMessage());
+    }
+
+    // The first run's items must survive the second run untouched
+    $this->assertEquals($queued, \CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = 'hubspot-sync-create-contacts'"));
+  }
+
   public function testInitialSync(): void {
     $contacts = self::loadAllContacts(['*', 'hubspot_sync.*']);
 

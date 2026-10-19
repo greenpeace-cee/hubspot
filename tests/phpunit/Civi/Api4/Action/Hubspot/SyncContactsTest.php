@@ -50,7 +50,7 @@ class SyncContactsTest extends TestBase {
     $first = (array) civicrm_api4('Hubspot', 'syncContacts', $params);
     $this->assertGreaterThan(0, $first['scheduledForCreate']);
 
-    $queued = \CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = 'hubspot-sync-create-contacts'");
+    $queued = self::countQueueItems('hubspot-sync-create-contacts');
     $this->assertGreaterThan(0, $queued);
 
     try {
@@ -61,7 +61,7 @@ class SyncContactsTest extends TestBase {
     }
 
     // The first run's items must survive the second run untouched
-    $this->assertEquals($queued, \CRM_Core_DAO::singleValueQuery("SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = 'hubspot-sync-create-contacts'"));
+    $this->assertEquals($queued, self::countQueueItems('hubspot-sync-create-contacts'));
   }
 
   public function testInitialSync(): void {

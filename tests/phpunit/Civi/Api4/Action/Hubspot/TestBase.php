@@ -67,7 +67,9 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
 
     // Sync actions fail while their queues hold items. Running a queue commits
     // (due to a LOCK TABLES in SqlParallel::claimItems), so items can outlive their test.
-    \CRM_Core_DAO::executeQuery("DELETE FROM civicrm_queue_item WHERE queue_name LIKE 'hubspot-%'");
+    Api4\QueueItem::delete(FALSE)
+      ->addWhere('queue_name', 'LIKE', 'hubspot-%')
+      ->execute();
   }
 
   public function tearDown(): void {
@@ -98,6 +100,14 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
       'limit' => 1,
       'checkPermissions' => FALSE,
     ])->first();
+  }
+
+  protected static function countQueueItems(string $queue_name): int {
+    return Api4\QueueItem::get(FALSE)
+      ->selectRowCount()
+      ->addWhere('queue_name', '=', $queue_name)
+      ->execute()
+      ->countMatched();
   }
 
   protected function processQueueItems(string $queue_name, string $expected_outcome = 'ok'): void {

@@ -38,7 +38,9 @@ final class CRM_Hubspot_SyncGuard {
     }
   }
 
-  // Items stay in the table until they have been processed, including those currently leased.
+  /**
+   * Items stay in the table until they have been processed, including those currently leased.
+   */
   private static function hasPendingItems(string $queue_name): bool {
     return \Civi\Api4\QueueItem::get(FALSE)
       ->selectRowCount()

@@ -27,8 +27,8 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
   }
 
   private function sync(Api4\Generic\Result $result): void {
-    $contact_creator = new BatchContactCreator([ 'queue_name' => self::CREATE_QUEUE ]);
-    $contact_updater = new BatchContactUpdater([ 'queue_name' => self::UPDATE_QUEUE ]);
+    $contact_creator = new BatchContactCreator(['queue_name' => self::CREATE_QUEUE]);
+    $contact_updater = new BatchContactUpdater(['queue_name' => self::UPDATE_QUEUE]);
 
     foreach ($this->selectContactsForSync() as $contact) {
       $contact['civicrm_id'] = $contact['id'];

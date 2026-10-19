@@ -78,7 +78,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       }
     }
 
-    $subscription_updater = new BatchSubscriptionUpdater([ 'queue_name' => self::QUEUE ]);
+    $subscription_updater = new BatchSubscriptionUpdater(['queue_name' => self::QUEUE]);
 
     foreach (self::getRecentSubscriptionChanges($from) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';

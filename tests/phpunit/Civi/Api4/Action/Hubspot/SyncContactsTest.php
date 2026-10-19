@@ -42,8 +42,8 @@ class SyncContactsTest extends TestBase {
 
   public function testSyncFailsWhileQueueIsNotEmpty(): void {
     $params = [
-      'select' => [ 'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id', 'CONCAT(hubspot_sync.email) AS email' ],
-      'where' => [ ['contact_type', '=', 'Individual'] ],
+      'select' => ['CONCAT(hubspot_sync.hubspot_id) AS hubspot_id', 'CONCAT(hubspot_sync.email) AS email'],
+      'where' => [['contact_type', '=', 'Individual']],
       'checkPermissions' => FALSE,
     ];
 
@@ -56,7 +56,8 @@ class SyncContactsTest extends TestBase {
     try {
       civicrm_api4('Hubspot', 'syncContacts', $params);
       $this->fail('A second sync with unprocessed queue items should fail');
-    } catch (\CRM_Core_Exception $e) {
+    }
+    catch (\CRM_Core_Exception $e) {
       $this->assertStringContainsString('still has unprocessed items', $e->getMessage());
     }
 

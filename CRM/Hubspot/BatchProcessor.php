@@ -19,7 +19,7 @@ abstract class CRM_Hubspot_BatchProcessor {
     $this->queue = Civi::queue($queue_name, [
       'type'           => 'SqlParallel',
       'runner'         => 'task',
-      'reset'          => TRUE,
+      'reset'          => FALSE,
       'retry_interval' => 2,
       'retry_limit'    => 2,
       'error'          => 'delete',

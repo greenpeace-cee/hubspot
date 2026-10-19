@@ -5,6 +5,7 @@ namespace Civi\Api4\Action\Hubspot;
 use Civi\Api4;
 use CRM_Hubspot_BatchContactCreator as BatchContactCreator;
 use CRM_Hubspot_BatchContactUpdater as BatchContactUpdater;
+use CRM_Hubspot_SyncGuard;
 use Exception;
 use Generator;
 
@@ -15,12 +16,19 @@ class SyncContacts extends Api4\Generic\DAOGetAction {
 
   use \CRM_Hubspot_LoadHubspotAccountTrait;
 
-  public function _run(Api4\Generic\Result $result) {
-    $contact_creator = new BatchContactCreator([ 'queue_name' => 'hubspot-sync-create-contacts' ]);
-    $contact_updater = new BatchContactUpdater([ 'queue_name' => 'hubspot-sync-update-contacts' ]);
+  const CREATE_QUEUE = 'hubspot-sync-create-contacts';
+  const UPDATE_QUEUE = 'hubspot-sync-update-contacts';
 
+  public function _run(Api4\Generic\Result $result) {
     $result['scheduledForCreate'] = 0;
     $result['scheduledForUpdate'] = 0;
+
+    CRM_Hubspot_SyncGuard::run('sync-contacts', [self::CREATE_QUEUE, self::UPDATE_QUEUE], fn () => $this->sync($result));
+  }
+
+  private function sync(Api4\Generic\Result $result): void {
+    $contact_creator = new BatchContactCreator(['queue_name' => self::CREATE_QUEUE]);
+    $contact_updater = new BatchContactUpdater(['queue_name' => self::UPDATE_QUEUE]);
 
     foreach ($this->selectContactsForSync() as $contact) {
       $contact['civicrm_id'] = $contact['id'];

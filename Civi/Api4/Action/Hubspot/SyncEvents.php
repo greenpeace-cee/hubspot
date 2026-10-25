@@ -5,6 +5,7 @@ namespace Civi\Api4\Action\Hubspot;
 use Civi\Api4;
 use CRM_Hubspot_BatchEventCreator as BatchEventCreator;
 use CRM_Hubspot_UUIDTrait as UUIDTrait;
+use CRM_Hubspot_SyncGuard;
 use DateTimeImmutable;
 use Generator;
 
@@ -15,9 +16,15 @@ class SyncEvents extends Api4\Generic\DAOGetAction {
 
   use UUIDTrait;
 
+  const QUEUE = 'hubspot-sync-create-events';
+
   public function _run(Api4\Generic\Result $result) {
+    CRM_Hubspot_SyncGuard::run('sync-events', [self::QUEUE], fn () => $this->sync());
+  }
+
+  private function sync(): void {
     $batch_processor = new BatchEventCreator([
-      'queue_name' => 'hubspot-sync-create-events',
+      'queue_name' => self::QUEUE,
       'batch_size' => 500,
     ]);
 

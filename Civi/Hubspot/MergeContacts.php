@@ -6,6 +6,7 @@ use Civi;
 use Civi\Api4;
 use Civi\Core\Event\GenericHookEvent;
 use Civi\Core\Service\AutoSubscriber;
+use CRM_Core_PseudoConstant;
 use CRM_Core_Session;
 use CRM_Hubspot_ApiClient;
 use CRM_Hubspot_UpdateContactSyncTableTrait as UpdateContactSyncTableTrait;
@@ -21,8 +22,59 @@ class MergeContacts extends AutoSubscriber {
 
   public static function getSubscribedEvents(): array {
     return [
-      'hook_civicrm_merge' => 'scheduleHubspotContactMerge',
+      'hook_civicrm_merge' => [
+        ['mergeSubscriptions'],
+        ['scheduleHubspotContactMerge'],
+      ],
     ];
+  }
+
+  /**
+   * Resolve subscriptions that both contacts have before core moves them.
+   *
+   * Core moves civicrm_subscription_contact rows with a plain UPDATE, which
+   * fails on the unique (contact_id, subscription_id) index when both contacts
+   * have the same subscription. Like core does for group memberships in
+   * CRM_Contact_BAO_GroupContact::mergeGroupContact(), we keep the primary's
+   * row and opt it in if the duplicate is opted in, so mapped groups and
+   * subscriptions end up with the same result.
+   */
+  public static function mergeSubscriptions(GenericHookEvent $event): void {
+    if ($event->type !== 'sqls') {
+      return;
+    }
+
+    $primary_id = (int) $event->mainId;
+    $duplicate_id = (int) $event->otherId;
+    $opt_in = (int) CRM_Core_PseudoConstant::getKey(
+      'CRM_Hubspot_BAO_SubscriptionContact',
+      'subscription_status',
+      'opt_in'
+    );
+
+    // Opt in the primary wherever the duplicate is opted in
+    $opt_in_primary_sql = "
+      UPDATE civicrm_subscription_contact primary_sc
+      INNER JOIN civicrm_subscription_contact duplicate_sc
+        ON duplicate_sc.subscription_id = primary_sc.subscription_id
+        AND duplicate_sc.contact_id = $duplicate_id
+      SET primary_sc.subscription_status = $opt_in
+      WHERE primary_sc.contact_id = $primary_id
+        AND primary_sc.subscription_status <> $opt_in
+        AND duplicate_sc.subscription_status = $opt_in
+    ";
+
+    // Drop the duplicate's row wherever the primary has one
+    $delete_duplicate_sql = "
+      DELETE duplicate_sc FROM civicrm_subscription_contact duplicate_sc
+      INNER JOIN civicrm_subscription_contact primary_sc
+        ON primary_sc.subscription_id = duplicate_sc.subscription_id
+        AND primary_sc.contact_id = $primary_id
+      WHERE duplicate_sc.contact_id = $duplicate_id
+    ";
+
+    // Must run before core's UPDATE of civicrm_subscription_contact
+    array_unshift($event->data, $opt_in_primary_sql, $delete_duplicate_sql);
   }
 
   public static function scheduleHubspotContactMerge(GenericHookEvent $event): void {

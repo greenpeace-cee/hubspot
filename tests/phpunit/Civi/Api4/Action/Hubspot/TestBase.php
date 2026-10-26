@@ -15,6 +15,7 @@ use GuzzleHttp\Handler\MockHandler;
 use GuzzleHttp\HandlerStack;
 use GuzzleHttp\Middleware;
 use PHPUnit\Framework\TestCase;
+use Psr\Log\AbstractLogger;
 
 class TestBase extends TestCase implements HeadlessInterface, HookInterface, TransactionalInterface {
 
@@ -124,6 +125,25 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
       $queue_item->find();
       $this->assertEquals(FALSE, $queue_item->fetch(), 'All queue items should have been processed');
     }
+  }
+
+  /**
+   * Routes Civi::log($channel) to a logger that collects the context of each message.
+   */
+  protected static function captureLog(string $channel): AbstractLogger {
+    $logger = new class() extends AbstractLogger {
+
+      public array $contexts = [];
+
+      public function log($level, $message, array $context = []): void {
+        $this->contexts[] = $context;
+      }
+
+    };
+
+    \Civi::container()->set("log.$channel", $logger);
+
+    return $logger;
   }
 
   protected static function shiftHistory(int $n = 1): array {

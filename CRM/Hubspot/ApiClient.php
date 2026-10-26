@@ -37,6 +37,13 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
+  public static function batchGetSubscriptionStatuses(array $emails): Response {
+    return self::request('POST', '/communication-preferences/v4/statuses/batch/read', [
+      'query' => ['channel' => 'EMAIL'],
+      'json'  => ['inputs' => $emails],
+    ]);
+  }
+
   public static function batchUpdateContacts(array $contacts_batch): Response {
     return self::request('POST', '/crm/v3/objects/contacts/batch/update', [
       'json' => [ 'inputs' => $contacts_batch ],

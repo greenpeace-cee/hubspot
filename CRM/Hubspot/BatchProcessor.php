@@ -12,6 +12,14 @@ abstract class CRM_Hubspot_BatchProcessor {
 
   abstract public static function processBatch(CRM_Queue_TaskContext $context, array $batch): bool;
 
+  /**
+   * Whether contacts should always yield when their email is already used by
+   * another HubSpot contact, instead of comparing ownership scores
+   */
+  protected static function alwaysYieldEmail(): bool {
+    return (bool) Civi::settings()->get('hubspot_always_yield_email');
+  }
+
   public function __construct(array $options = []) {
     $this->batchSize = $options['batch_size'] ?? self::DEFAULT_BATCH_SIZE;
     $queue_name = $options['queue_name'] ?? self::DEFAULT_QUEUE_NAME;

@@ -587,6 +587,88 @@ class SyncContactsTest extends TestBase {
     );
   }
 
+  public function testEmailConflict_AlwaysYieldSetting(): void {
+    $contact_id = (int) self::loadAllContacts(['id'])[0]['id'];
+    $hubspot_id = MockResponses::generateHubspotId();
+    $other_hubspot_id = MockResponses::generateHubspotId();
+
+    Api4\Contact::update(FALSE)
+      ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
+      ->addValue('hubspot_sync.ownership_score', 60)
+      ->addWhere('id', '=', $contact_id)
+      ->execute();
+
+    $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
+
+    self::$mockHandler->append(MockResponses::batchUpdateContacts(400));
+
+    self::$mockHandler->append(MockResponses::getContactByEmail(200, [
+      'id' => $other_hubspot_id,
+      'properties' => [
+        'email'           => $contact['hubspot_sync.email'],
+        'owned_by'        => 'BG',
+        'ownership_score' => 50,
+      ],
+    ]));
+
+    self::$mockHandler->append(MockResponses::updateContact(200, [
+      'id' => $hubspot_id,
+      'properties' => [
+        'civicrm_id'        => $contact_id,
+        'owned_by'          => 'AT',
+        'ownership_score'   => 60,
+        'unique_civicrm_id' => self::OWNER_IDENTIFIER . '-' . $contact_id,
+      ],
+    ]));
+
+    // Set and reset explicitly, as running the queue commits the transaction
+    \Civi::settings()->set('hubspot_always_yield_email', TRUE);
+
+    try {
+      civicrm_api4('Hubspot', 'syncContacts', [
+        'select' => [
+          'CONCAT(hubspot_sync.hubspot_id) AS hubspot_id',
+          'CONCAT(hubspot_sync.email) AS email',
+          'CONCAT(hubspot_sync.owned_by) AS owned_by',
+          'ABS(hubspot_sync.ownership_score) AS ownership_score',
+        ],
+        'where' => [
+          ['id', '=', $contact_id],
+        ],
+        'checkPermissions' => FALSE,
+      ]);
+
+      $this->processQueueItems('hubspot-sync-update-contacts');
+    } finally {
+      \Civi::settings()->revert('hubspot_always_yield_email');
+    }
+
+    $get_primary_email_owner_req = self::shiftHistory(2)['request'];
+
+    $this->assertEquals('GET', $get_primary_email_owner_req->getMethod());
+
+    $update_contact_req = self::shiftHistory()['request'];
+
+    $this->assertEquals(
+      "/crm/v3/objects/contacts/$hubspot_id",
+      $update_contact_req->getUri()->getPath(),
+      'Should have updated the local contact without touching the primary email owner'
+    );
+
+    $this->assertArrayNotHasKey(
+      'email',
+      json_decode((string) $update_contact_req->getBody(), TRUE)['properties'],
+      'The email should not have been synced'
+    );
+
+    $this->assertCount(0, self::$mockHandler, 'All mocked responses should have been consumed');
+
+    $contact = self::loadSingleContact($contact_id, ['hubspot_sync.*']);
+
+    $this->assertEquals('BG', $contact['hubspot_sync.owned_by'], 'The contact should be owned by Bulgaria');
+    $this->assertEquals('successful', $contact['hubspot_sync.sync_status']);
+  }
+
   public function testUpdateNonExistentContacts(): void {
     $contact_id = (int) self::loadAllContacts(['id'])[0]['id'];
     $hubspot_id = MockResponses::generateHubspotId();

@@ -40,13 +40,14 @@ final class CRM_Hubspot_SyncGuard {
 
   /**
    * Items stay in the table until they have been processed, including those currently leased.
+   *
+   * Uses SQL because the QueueItem API is not available before CiviCRM 5.70.
    */
   private static function hasPendingItems(string $queue_name): bool {
-    return \Civi\Api4\QueueItem::get(FALSE)
-      ->selectRowCount()
-      ->addWhere('queue_name', '=', $queue_name)
-      ->execute()
-      ->countMatched() > 0;
+    return (bool) CRM_Core_DAO::singleValueQuery(
+      'SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = %1',
+      [1 => [$queue_name, 'String']]
+    );
   }
 
 }

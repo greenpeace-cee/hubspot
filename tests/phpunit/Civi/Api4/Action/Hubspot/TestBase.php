@@ -9,6 +9,7 @@ use Civi\Test\CiviEnvBuilder;
 use Civi\Test\HeadlessInterface;
 use Civi\Test\HookInterface;
 use Civi\Test\TransactionalInterface;
+use CRM_Core_DAO;
 use CRM_Core_Session;
 use CRM_Hubspot_ApiClient;
 use GuzzleHttp\Handler\MockHandler;
@@ -67,9 +68,8 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
 
     // Sync actions fail while their queues hold items. Running a queue commits
     // (due to a LOCK TABLES in SqlParallel::claimItems), so items can outlive their test.
-    Api4\QueueItem::delete(FALSE)
-      ->addWhere('queue_name', 'LIKE', 'hubspot-%')
-      ->execute();
+    // (SQL because the QueueItem API is not available before CiviCRM 5.70)
+    CRM_Core_DAO::executeQuery("DELETE FROM civicrm_queue_item WHERE queue_name LIKE 'hubspot-%'");
   }
 
   public function tearDown(): void {
@@ -103,11 +103,10 @@ class TestBase extends TestCase implements HeadlessInterface, HookInterface, Tra
   }
 
   protected static function countQueueItems(string $queue_name): int {
-    return Api4\QueueItem::get(FALSE)
-      ->selectRowCount()
-      ->addWhere('queue_name', '=', $queue_name)
-      ->execute()
-      ->countMatched();
+    return (int) CRM_Core_DAO::singleValueQuery(
+      'SELECT COUNT(*) FROM civicrm_queue_item WHERE queue_name = %1',
+      [1 => [$queue_name, 'String']]
+    );
   }
 
   protected function processQueueItems(string $queue_name, string $expected_outcome = 'ok'): void {

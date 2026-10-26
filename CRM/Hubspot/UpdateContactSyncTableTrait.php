@@ -4,6 +4,33 @@ use Civi\Api4;
 
 trait CRM_Hubspot_UpdateContactSyncTableTrait {
 
+  /**
+   * The HubSpot ID is kept after deletion and merging, so check the sync status as well.
+   */
+  private static function hasActiveHubspotContact(?array $contact): bool {
+    return !empty($contact['hubspot_sync.hubspot_id'])
+      && !in_array($contact['hubspot_sync.sync_status'], ['deleted', 'merged'], TRUE);
+  }
+
+  /**
+   * Contacts can change after a batch was queued. Keep only items whose contact
+   * still exists, isn't deleted and matches $where.
+   */
+  private static function filterBatchContacts(array $batch, array $where = []): array {
+    $contact_ids = Api4\Contact::get(FALSE)
+      ->addSelect('id')
+      ->setWhere($where)
+      ->addWhere('id', 'IN', array_map(fn ($item) => $item['properties']['civicrm_id'], $batch))
+      ->addWhere('is_deleted', '=', FALSE)
+      ->execute()
+      ->column('id');
+
+    return array_values(array_filter(
+      $batch,
+      fn ($item) => in_array((int) $item['properties']['civicrm_id'], $contact_ids, TRUE)
+    ));
+  }
+
   private static function updateSyncRecord(array $record): void {
     $assignments = ['last_sync_date = CURRENT_TIMESTAMP'];
     $params = [];

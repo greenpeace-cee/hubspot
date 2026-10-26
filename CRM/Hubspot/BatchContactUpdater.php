@@ -107,6 +107,14 @@ class CRM_Hubspot_BatchContactUpdater extends CRM_Hubspot_BatchProcessor {
   }
 
   public static function processBatch(CRM_Queue_TaskContext $_ctx, array $batch): bool {
+    // Skip contacts deleted since queueing, e.g. merged duplicates, whose
+    // HubSpot contact may now belong to the primary
+    $batch = self::filterBatchContacts($batch);
+
+    if (empty($batch)) {
+      return TRUE;
+    }
+
     try {
       $response = ApiClient::batchUpdateContacts($batch);
 

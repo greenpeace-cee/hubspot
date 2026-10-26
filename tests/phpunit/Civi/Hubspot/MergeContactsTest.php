@@ -4,7 +4,9 @@ declare(strict_types = 1);
 namespace Civi\Hubspot;
 
 use Civi\Api4;
+use Civi\Api4\Action\Hubspot\MockResponses;
 use Civi\Api4\Action\Hubspot\TestBase;
+use CRM_Queue_TaskContext;
 
 /**
  * @group headless
@@ -85,6 +87,72 @@ class MergeContactsTest extends TestBase {
       $this->assertEquals($primary_id, $row['contact_id'], "Contact for $name");
       $this->assertEquals($expected_status, $row['subscription_status:name'], "Status for $name");
     }
+  }
+
+  public function testSyncRecordsAreNotMerged(): void {
+    $primary_hubspot_id = MockResponses::generateHubspotId();
+    $duplicate_hubspot_id = MockResponses::generateHubspotId();
+
+    // Conflicting HubSpot IDs must not prevent a safe merge,
+    // and the primary's empty sync email must not be filled in
+    $primary_id = self::createContact($primary_hubspot_id, NULL);
+    $duplicate_id = self::createContact($duplicate_hubspot_id, 'duplicate@example.org');
+
+    $result = civicrm_api3('Contact', 'merge', [
+      'to_keep_id'   => $primary_id,
+      'to_remove_id' => $duplicate_id,
+      'mode'         => 'safe',
+    ]);
+    $this->assertCount(1, $result['values']['merged'], 'The contacts should have been merged');
+
+    $primary = self::loadSingleContact($primary_id, ['hubspot_sync.hubspot_id', 'hubspot_sync.email']);
+    $this->assertEquals($primary_hubspot_id, $primary['hubspot_sync.hubspot_id']);
+    $this->assertNull($primary['hubspot_sync.email']);
+
+    $duplicate = self::loadSingleContact($duplicate_id, ['hubspot_sync.hubspot_id']);
+    $this->assertEquals($duplicate_hubspot_id, $duplicate['hubspot_sync.hubspot_id']);
+  }
+
+  public function testPrimaryTakesOverDuplicatesHubspotContact(): void {
+    $hubspot_id = MockResponses::generateHubspotId();
+
+    // The primary has no sync record at all
+    $primary_id = (int) Api4\Contact::create(FALSE)
+      ->addValue('contact_type', 'Individual')
+      ->addValue('first_name', 'Merge')
+      ->addValue('last_name', 'Candidate')
+      ->execute()
+      ->first()['id'];
+
+    $duplicate_id = self::createContact($hubspot_id, NULL);
+
+    civicrm_api3('Contact', 'merge', [
+      'to_keep_id'   => $primary_id,
+      'to_remove_id' => $duplicate_id,
+    ]);
+
+    // No mock response is queued, so a merge request to HubSpot would throw
+    MergeContacts::mergeHubspotContacts(new CRM_Queue_TaskContext(), $primary_id, $duplicate_id);
+
+    $primary = self::loadSingleContact($primary_id, ['hubspot_sync.hubspot_id']);
+    $this->assertEquals($hubspot_id, $primary['hubspot_sync.hubspot_id']);
+
+    $duplicate = self::loadSingleContact($duplicate_id, ['hubspot_sync.sync_status']);
+    $this->assertEquals('merged', $duplicate['hubspot_sync.sync_status']);
+
+    // Running the task again must not merge the HubSpot contact into itself
+    MergeContacts::mergeHubspotContacts(new CRM_Queue_TaskContext(), $primary_id, $duplicate_id);
+  }
+
+  private static function createContact(string $hubspot_id, ?string $email): int {
+    return (int) Api4\Contact::create(FALSE)
+      ->addValue('contact_type', 'Individual')
+      ->addValue('first_name', 'Merge')
+      ->addValue('last_name', 'Candidate')
+      ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
+      ->addValue('hubspot_sync.email', $email)
+      ->execute()
+      ->first()['id'];
   }
 
 }

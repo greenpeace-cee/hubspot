@@ -4,6 +4,9 @@ declare(strict_types = 1);
 namespace Civi\Api4\Action\Hubspot;
 
 use Civi\Api4;
+use CRM_Hubspot_BatchContactCreator as BatchContactCreator;
+use CRM_Hubspot_BatchContactUpdater as BatchContactUpdater;
+use CRM_Queue_TaskContext;
 use GuzzleHttp\Psr7\Response;
 
 /**
@@ -166,6 +169,48 @@ class SyncContactsTest extends TestBase {
         'The payload of the latest sync should contain the expected values'
       );
     }
+  }
+
+  public function testContactsChangedAfterQueueingAreSkipped(): void {
+    [$active_id, $deleted_id, $synced_id] = array_map(fn ($contact) => (int) $contact['id'], self::loadAllContacts(['id']));
+    $hubspot_id = MockResponses::generateHubspotId();
+
+    Api4\Contact::delete(FALSE)
+      ->addWhere('id', '=', $deleted_id)
+      ->execute();
+
+    Api4\Contact::update(FALSE)
+      ->addWhere('id', '=', $synced_id)
+      ->addValue('hubspot_sync.hubspot_id', $hubspot_id)
+      ->execute();
+
+    self::$mockHandler->append(MockResponses::batchCreateContacts(201, [
+      'contacts' => [['civicrm_id' => $active_id]],
+    ]));
+
+    BatchContactCreator::processBatch(new CRM_Queue_TaskContext(), [
+      ['properties' => ['civicrm_id' => $active_id]],
+      ['properties' => ['civicrm_id' => $deleted_id]],
+      ['properties' => ['civicrm_id' => $synced_id]],
+    ]);
+
+    $request_body = json_decode((string) self::shiftHistory()['request']->getBody(), TRUE);
+    $this->assertEquals([['properties' => ['civicrm_id' => $active_id]]], $request_body['inputs']);
+
+    $update = ['id' => $hubspot_id, 'properties' => ['civicrm_id' => $synced_id]];
+
+    self::$mockHandler->append(MockResponses::batchUpdateContacts(200, [
+      'ids'        => [$hubspot_id],
+      'properties' => [$update['properties']],
+    ]));
+
+    BatchContactUpdater::processBatch(new CRM_Queue_TaskContext(), [
+      $update,
+      ['id' => MockResponses::generateHubspotId(), 'properties' => ['civicrm_id' => $deleted_id]],
+    ]);
+
+    $request_body = json_decode((string) self::shiftHistory()['request']->getBody(), TRUE);
+    $this->assertEquals([$update], $request_body['inputs']);
   }
 
   public function testSuccessfulUpdate(): void {

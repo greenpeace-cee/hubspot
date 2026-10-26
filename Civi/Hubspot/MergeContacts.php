@@ -25,7 +25,9 @@ class MergeContacts extends AutoSubscriber {
       'hook_civicrm_merge' => [
         ['mergeSubscriptions'],
         ['scheduleHubspotContactMerge'],
+        ['excludeSyncFieldsFromMerge'],
       ],
+      'hook_civicrm_buildForm' => 'hideSyncFieldsInMergeForm',
     ];
   }
 
@@ -120,20 +122,37 @@ class MergeContacts extends AutoSubscriber {
     if ($merge_delete_count->rowCount < 1) return TRUE;
 
     $primary_contact = Api4\Contact::get(FALSE)
-      ->addSelect('hubspot_sync.hubspot_id')
+      ->addSelect('hubspot_sync.hubspot_id', 'hubspot_sync.sync_status')
       ->addWhere('id', '=', $primary_id)
       ->execute()
       ->first();
 
-    if (empty($primary_contact['hubspot_sync.hubspot_id'])) return TRUE;
-
     $duplicate_contact = Api4\Contact::get(FALSE)
-      ->addSelect('hubspot_sync.hubspot_id')
+      ->addSelect('hubspot_sync.hubspot_id', 'hubspot_sync.sync_status')
       ->addWhere('id', '=', $duplicate_id)
       ->execute()
       ->first();
 
-    if (empty($duplicate_contact['hubspot_sync.hubspot_id'])) return TRUE;
+    if (!self::hasActiveHubspotContact($duplicate_contact)) {
+      return TRUE;
+    }
+
+    if (!self::hasActiveHubspotContact($primary_contact)) {
+      // Take over the duplicate's HubSpot contact. APIv4 creates the primary's
+      // sync record if it doesn't exist yet, unlike updateSyncRecord().
+      Api4\Contact::update(FALSE)
+        ->addWhere('id', '=', $primary_id)
+        ->addValue('hubspot_sync.hubspot_id', $duplicate_contact['hubspot_sync.hubspot_id'])
+        ->addValue('hubspot_sync.sync_status', 'changed')
+        ->execute();
+
+      self::updateSyncRecord([
+        'entity_id'   => $duplicate_id,
+        'sync_status' => 'merged',
+      ]);
+
+      return TRUE;
+    }
 
     $merge_response = CRM_Hubspot_ApiClient::mergeContacts(
       $primary_contact['hubspot_sync.hubspot_id'],
@@ -155,6 +174,50 @@ class MergeContacts extends AutoSubscriber {
     ]);
 
     return TRUE;
+  }
+
+  /**
+   * Keep both contacts' hubspot_sync records unchanged when merging.
+   */
+  public static function excludeSyncFieldsFromMerge(GenericHookEvent $event): void {
+    if (!in_array($event->type, ['batch', 'form'], TRUE)) {
+      return;
+    }
+
+    foreach (self::syncFields() as $field) {
+      unset($event->data['migration_info']["move_custom_{$field['id']}"]);
+      unset($event->data['fields_in_conflict']["move_custom_{$field['id']}"]);
+    }
+  }
+
+  /**
+   * Hide the hubspot_sync fields on the merge form.
+   */
+  public static function hideSyncFieldsInMergeForm(GenericHookEvent $event): void {
+    if ($event->formName !== 'CRM_Contact_Form_Merge') {
+      return;
+    }
+
+    $form = $event->form;
+    // getTemplateVars() doesn't exist in CiviCRM 5.69
+    $rows = method_exists($form, 'getTemplateVars') ? $form->getTemplateVars('rows') : $form->get_template_vars('rows');
+
+    foreach (self::syncFields() as $field) {
+      $key = "move_custom_{$field['id']}";
+      unset($rows[$key], $rows["custom_group_{$field['custom_group_id']}"]);
+      if ($form->elementExists($key)) {
+        $form->removeElement($key);
+      }
+    }
+
+    $form->assign('rows', $rows);
+  }
+
+  private static function syncFields(): array {
+    return (array) Api4\CustomField::get(FALSE)
+      ->addSelect('id', 'custom_group_id')
+      ->addWhere('custom_group_id.name', '=', 'hubspot_sync')
+      ->execute();
   }
 
 }

@@ -34,6 +34,16 @@ class DeleteContact extends AutoSubscriber {
 
     $contact_id = (int) $event->object->id;
 
+    $contact = Api4\Contact::get(FALSE)
+      ->addSelect('hubspot_sync.hubspot_id', 'hubspot_sync.sync_status')
+      ->addWhere('id', '=', $contact_id)
+      ->execute()
+      ->first();
+
+    if (!self::hasActiveHubspotContact($contact)) {
+      return;
+    }
+
     $queue = Civi::queue('hubspot-sync-delete-contacts', [
       'type'           => 'SqlParallel',
       'runner'         => 'task',
@@ -59,7 +69,7 @@ class DeleteContact extends AutoSubscriber {
 
   public static function deleteHubspotContact(CRM_Queue_TaskContext $_context, int $contact_id): bool {
     $contact = Api4\Contact::get(FALSE)
-      ->addSelect('is_deleted', 'hubspot_sync.hubspot_id')
+      ->addSelect('is_deleted', 'hubspot_sync.hubspot_id', 'hubspot_sync.sync_status')
       ->addWhere('id', '=', $contact_id)
       ->execute()
       ->first();
@@ -74,7 +84,9 @@ class DeleteContact extends AutoSubscriber {
 
     if ($merge_delete_count->rowCount > 0) return TRUE;
 
-    if (empty($contact['hubspot_sync.hubspot_id'])) return TRUE;
+    if (!self::hasActiveHubspotContact($contact)) {
+      return TRUE;
+    }
 
     CRM_Hubspot_ApiClient::gdprDeleteContact($contact['hubspot_sync.hubspot_id']);
 

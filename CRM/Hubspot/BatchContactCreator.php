@@ -94,6 +94,15 @@ class CRM_Hubspot_BatchContactCreator extends CRM_Hubspot_BatchProcessor {
   }
 
   public static function processBatch(CRM_Queue_TaskContext $_ctx, array $batch): bool {
+    // Skip contacts deleted since queueing, as DeleteContact only removes contacts
+    // that had a HubSpot ID when deleted, and contacts that got a HubSpot ID in
+    // the meantime, e.g. by taking over a merged duplicate's
+    $batch = self::filterBatchContacts($batch, [['hubspot_sync.hubspot_id', 'IS EMPTY']]);
+
+    if (empty($batch)) {
+      return TRUE;
+    }
+
     try {
       $response = ApiClient::batchCreateContacts($batch);
 

@@ -76,6 +76,18 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
+  public static function getMarketingCampaign(string $campaign_guid, array $query = []): Response {
+    return self::request('GET', "/marketing/campaigns/2026-03/$campaign_guid", [
+      'query' => array_filter($query),
+    ]);
+  }
+
+  public static function getMarketingEmails(array $query = []): Response {
+    return self::request('GET', '/marketing/emails/2026-03', [
+      'query' => array_filter($query),
+    ]);
+  }
+
   public static function getSubscriptionDefinitions(): Response {
     return self::request('GET', '/communication-preferences/v3/definitions');
   }

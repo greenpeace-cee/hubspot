@@ -153,7 +153,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
   }
 
   private static function getRecentSubscriptionChanges(?DateTimeImmutable $from) {
-    $page_size = 100;
+    $page_size = 10000;
     $offset = 0;
 
     while (TRUE) {

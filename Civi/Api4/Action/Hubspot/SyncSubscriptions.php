@@ -15,6 +15,8 @@ use DateTimeImmutable;
  */
 class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
+  use \CRM_Hubspot_LoadHubspotAccountTrait;
+
   const SUBSCRIPTION_STATUS_EVENT = 'e_updated_email_subscription_status_v2';
 
   /**
@@ -24,6 +26,17 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
    * @var bool
    */
   protected bool $skipApiWrites = FALSE;
+
+  /**
+   * Force-push all local subscriptions to HubSpot after fetching remote subscription changes,
+   * ignoring the last sync date.
+   *
+   * This is intended to be used to push missed changes in previous sync windows,
+   * e.g. for contacts newly-added to the hubspot sync table (if they had subscriptions prior to that)
+   *
+   * @var bool
+   */
+  protected bool $forceFromLocalSubscriptions = FALSE;
 
   private static array $hubspotSubscriptionDefinitions;
   private static array $subscriptions;
@@ -78,9 +91,9 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       }
     }
 
-    $subscription_updater = new BatchSubscriptionUpdater(['queue_name' => self::QUEUE]);
+    $subscription_updater = new BatchSubscriptionUpdater(['queue_name' => self::QUEUE, 'batch_size' => 100]);
 
-    foreach (self::getRecentSubscriptionChanges($from) as $contact_subscription) {
+    foreach (self::getRecentSubscriptionChanges($this->forceFromLocalSubscriptions ? NULL : $from) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';
 
       $update = [
@@ -99,6 +112,8 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       $result['sent']++;
     }
 
+    // TODO: should we set a specific activity_date_time? This feels racy for long-running syncs ...
+    // (e.g. set $to = now at start of sync, limit what we look at to < $to and store that date)
     Api4\Activity::create(FALSE)
       ->addValue('activity_type_id:name', 'hubspot_subscription_sync')
       ->addValue('source_contact_id',     Session::getLoggedInContactId())
@@ -137,22 +152,33 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     return $change_events;
   }
 
-  private static function getRecentSubscriptionChanges(DateTimeImmutable $from) {
+  private static function getRecentSubscriptionChanges(?DateTimeImmutable $from) {
     $page_size = 100;
     $offset = 0;
 
     while (TRUE) {
-      $subscription_contact_results = Api4\SubscriptionContact::get(FALSE)
+      $subscription_contact_query = Api4\SubscriptionContact::get(FALSE)
         ->addSelect(
           'CONCAT(contact_id.hubspot_sync.email) AS email',
           'CONCAT(subscription_id.hubspot_id) AS subscription',
           'subscription_status:name'
         )
-        ->addWhere('modified_date', '>', $from->format('Y-m-d H:i:s'))
+        // only sync if we have an email to link the subscription to
+        ->addWhere('contact_id.hubspot_sync.email', 'IS NOT EMPTY')
+        ->addWhere('subscription_id.hubspot_id', 'IS NOT EMPTY')
+        // not used here, but probably a good idea for the record to have a hubspot_id too
+        ->addWhere('contact_id.hubspot_sync.hubspot_id', 'IS NOT NULL')
+        // we don't really know which email is currently linked in hubspot unless the last status is successful
+        ->addWhere('contact_id.hubspot_sync.sync_status', '=', 'successful')
+        ->addWhere('contact_id.hubspot_sync.owned_by', '=', self::hubspotAccount()['owner_identifier'])
         ->addOrderBy('id', 'ASC')
         ->setLimit($page_size)
-        ->setOffset($offset)
-        ->execute();
+        ->setOffset($offset);
+
+      if (!is_null($from)) {
+        $subscription_contact_query->addWhere('modified_date', '>', $from->format('Y-m-d H:i:s'));
+      }
+      $subscription_contact_results = $subscription_contact_query->execute();
 
       if ($subscription_contact_results->countFetched() === 0) return;
 

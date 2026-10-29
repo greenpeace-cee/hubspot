@@ -34,6 +34,7 @@ class SyncSubscriptionsTest extends TestBase {
     foreach (self::loadAllContacts(['id']) as $contact) {
       Api4\Contact::update(FALSE)
         ->addValue('hubspot_sync.hubspot_id', MockResponses::generateHubspotId())
+        ->addValue('hubspot_sync.sync_status', 'successful')
         ->addWhere('id', '=', $contact['id'])
         ->execute();
     }

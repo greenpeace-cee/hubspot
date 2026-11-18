@@ -81,6 +81,8 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
     $contact = Api4\Contact::get(FALSE)
       ->addSelect('id')
       ->addWhere('hubspot_sync.email', '=', $email)
+      ->addWhere('hubspot_sync.sync_status', 'NOT IN', ['deleted', 'merged'])
+      ->addWhere('is_deleted', '=', FALSE)
       ->setLimit(1)
       ->execute()
       ->first();

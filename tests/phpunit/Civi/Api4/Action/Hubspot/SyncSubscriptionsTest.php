@@ -21,6 +21,13 @@ class SyncSubscriptionsTest extends TestBase {
   public function setUp(): void {
     parent::setUp();
 
+    // Running a queue commits (see TestBase::setUp), so subscriptions and sync activities can outlive their test
+    Api4\SubscriptionContact::delete(FALSE)->addWhere('id', '>', 0)->execute();
+
+    Api4\Activity::delete(FALSE)
+      ->addWhere('activity_type_id:name', '=', 'hubspot_subscription_sync')
+      ->execute();
+
     self::$subscriptions = (array) Api4\Subscription::save(FALSE)
       ->addRecord([
         'name'        => "community_newsletter",
@@ -200,6 +207,57 @@ class SyncSubscriptionsTest extends TestBase {
         'subscription_status:name' => 'opt_in',
       ],
     ], $subscription_contacts);
+  }
+
+  public function testSyncSubscriptionsIgnoresMergedContacts(): void {
+    [$duplicate, $primary] = self::loadAllContacts(['id', 'hubspot_sync.*']);
+
+    // A merged duplicate keeps the HubSpot ID that its primary contact now uses
+    Api4\Contact::update(FALSE)
+      ->addValue('hubspot_sync.hubspot_id', $primary['hubspot_sync.hubspot_id'])
+      ->addValue('hubspot_sync.sync_status', 'merged')
+      ->addWhere('id', '=', $duplicate['id'])
+      ->execute();
+
+    $event = [
+      'id'        => self::generateUUID(),
+      'type'      => 'e_updated_email_subscription_status_v2',
+      'change'    => 'SUBSCRIBED',
+      'object_id' => $primary['hubspot_sync.hubspot_id'],
+      'timestamp' => strtotime('yesterday'),
+    ];
+
+    self::$mockHandler->append(MockResponses::getEvents(200, [ 'events' => [$event] ]));
+
+    self::$mockHandler->append(MockResponses::getSubscriptionsTimeline(200, [
+      'items' => [
+        [
+          'change'          => $event['change'],
+          'event_id'        => $event['id'],
+          'email'           => $primary['hubspot_sync.email'],
+          'subscription_id' => self::$subscriptions[0]['hubspot_id'],
+          'timestamp'       => $event['timestamp'],
+        ],
+      ],
+    ]));
+
+    self::$mockHandler->append(MockResponses::batchGetContacts(200, [
+      'contacts' => [
+        [
+          'hubspot_id' => $primary['hubspot_sync.hubspot_id'],
+          'email'      => $primary['hubspot_sync.email'],
+        ],
+      ],
+    ]));
+
+    Api4\Hubspot::syncSubscriptions(FALSE)->execute();
+
+    $subscription_contacts = Api4\SubscriptionContact::get(FALSE)
+      ->addSelect('contact_id')
+      ->execute()
+      ->column('contact_id');
+
+    $this->assertEquals([$primary['id']], $subscription_contacts);
   }
 
 }

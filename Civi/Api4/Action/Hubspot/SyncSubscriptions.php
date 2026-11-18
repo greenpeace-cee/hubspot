@@ -65,6 +65,16 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
   const QUEUE = 'hubspot-sync-subscriptions';
 
   public function _run(Api4\Generic\Result $result) {
+    // Each page of events is resolved with a single contacts batch read, which HubSpot caps at 100 inputs
+    if ($this->eventPageSize > 100) {
+      throw new \CRM_Core_Exception('eventPageSize must not be greater than 100');
+    }
+
+    // A limit of 0 means "no limit" in APIv4, so paging would never advance
+    if ($this->subscriptionPageSize < 1) {
+      throw new \CRM_Core_Exception('subscriptionPageSize must be greater than 0');
+    }
+
     $result['received'] = 0;
     $result['sent'] = 0;
 
@@ -83,7 +93,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     $from = new DateTimeImmutable($latest_sync_activity['activity_date_time'] ?? '@0');
 
     foreach (self::getSubscriptionEvents($from, $this->eventPageSize, $this->timelinePageSize) as $event) {
-      $contact_id = self::resolveHubspotContactId($event['hubspot_contact_id']);
+      $contact_id = $event['contact_id'];
 
       if (is_null($contact_id)) continue;
 
@@ -261,10 +271,14 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         []
       );
 
+      $contact_ids = self::resolveHubspotContactIds(array_column($events, 'hubspot_contact_id'));
+
       foreach ($events as $event) {
         $email = $hubspot_contact_emails[$event['hubspot_contact_id']] ?? NULL;
 
         if (empty($email)) continue;
+
+        $event['contact_id'] = $contact_ids[$event['hubspot_contact_id']] ?? NULL;
 
         yield $event;
       }
@@ -275,13 +289,29 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     }
   }
 
-  private static function resolveHubspotContactId(string $hubspot_contact_id): ?int {
-    return Api4\Contact::get(FALSE)
-      ->addSelect('id')
-      ->addWhere('hubspot_sync.hubspot_id', '=', $hubspot_contact_id)
-      ->setLimit(1)
-      ->execute()
-      ->first()['id'] ?? NULL;
+  /**
+   * @return int[] CiviCRM contact IDs, keyed by HubSpot contact ID
+   */
+  private static function resolveHubspotContactIds(array $hubspot_contact_ids): array {
+    $contacts = Api4\Contact::get(FALSE)
+      ->addSelect('id', 'hubspot_sync.hubspot_id')
+      ->addWhere('hubspot_sync.hubspot_id', 'IN', array_unique($hubspot_contact_ids))
+      // deleted and merged contacts keep their HubSpot ID, which may now belong to another contact
+      ->addWhere('is_deleted', '=', FALSE)
+      ->addClause('OR',
+        ['hubspot_sync.sync_status', 'IS NULL'],
+        ['hubspot_sync.sync_status', 'NOT IN', ['deleted', 'merged']]
+      )
+      ->addOrderBy('id', 'ASC')
+      ->execute();
+
+    $contact_ids = [];
+
+    foreach ($contacts as $contact) {
+      $contact_ids[$contact['hubspot_sync.hubspot_id']] ??= $contact['id'];
+    }
+
+    return $contact_ids;
   }
 
   private static function resolveHubspotSubscriptionId(string $hubspot_subscription_id): ?int {

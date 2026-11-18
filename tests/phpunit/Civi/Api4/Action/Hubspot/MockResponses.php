@@ -165,6 +165,40 @@ class MockResponses {
     }
   }
 
+  public static function batchGetSubscriptionStatuses(int $status_code, array $parameters = []): Response {
+    switch ($status_code) {
+      case 200: {
+        return new Response(
+          200,
+          [ 'Content-Type' => 'application/json' ],
+          json_encode([
+            'status'  => 'COMPLETE',
+            'results' => array_map(
+              fn ($subscriber) => [
+                'subscriberIdString' => $subscriber['email'],
+                'statuses'           => [
+                  [
+                    'channel'            => 'EMAIL',
+                    'subscriberIdString' => $subscriber['email'],
+                    'subscriptionId'     => (int) $subscriber['subscription_id'],
+                    'status'             => $subscriber['status'],
+                    'source'             => 'Public status API',
+                    'timestamp'          => date('Y-m-d\\TH:i:s.vp', strtotime('1 week ago')),
+                  ],
+                ],
+              ],
+              $parameters['subscribers'] ?? []
+            ),
+          ])
+        );
+      }
+
+      default: {
+        return new Response($status_code);
+      }
+    }
+  }
+
   public static function batchUpdateSubscriptionStatus(int $status_code): Response {
     switch ($status_code) {
       default: {
@@ -218,7 +252,7 @@ class MockResponses {
           200,
           [ 'Content-Type' => 'application/json' ],
           json_encode([
-            'paging'  => [],
+            'paging'  => isset($parameters['after']) ? [ 'next' => [ 'after' => $parameters['after'] ] ] : [],
             'results' => array_map(
               fn ($event) => [
                 'id'         => $event['id'] ?? self::generateUUID(),
@@ -258,8 +292,8 @@ class MockResponses {
           200,
           [ 'Content-Type' => 'application/json' ],
           json_encode([
-            'hasMore' => FALSE,
-            'offset' => self::generateRandomString(20),
+            'hasMore' => isset($parameters['offset']),
+            'offset' => $parameters['offset'] ?? self::generateRandomString(20),
             'timeline' => array_map(
               fn ($item) => [
                 'timestamp'         => (float) date('U.v', $item['timestamp']) * 1000,

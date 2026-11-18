@@ -6,17 +6,22 @@ use CRM_Hubspot_ApiClient as ApiClient;
 
 class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
+  private static array $campaignIds = [];
+
   public static function processBatch(CRM_Queue_TaskContext $_context, array $batch): bool {
     $email_message_records = Api4\EmailMessage::save(FALSE)->setMatch(['external_id']);
 
+    $campaign_id = self::resolveCampaignName($mailing['civicrm_campaign']);
+    $default_campaign_id = Civi::settings()->get('hubspot_default_mailing_campaign_id');
+
     foreach ($batch as $mailing) {
       $email_message_records->addRecord([
-        'campaign_id.name' => $mailing['civicrm_campaign'],
-        'external_id'      => $mailing['id'],
-        'subject'          => $mailing['subject'],
-        'from_name'        => $mailing['from']['fromName'],
-        'from_email'       => $mailing['from']['replyTo'],
-        'publish_date'     => $mailing['publishDate'],
+        'campaign_id' => $campaign_id ?? $default_campaign_id,
+        'external_id' => $mailing['id'],
+        'subject'     => $mailing['subject'] ?? NULL,
+        'from_name'   => $mailing['from']['fromName'] ?? NULL,
+        'from_email'  => $mailing['from']['replyTo'] ?? NULL,
+        'publish_date'=> $mailing['publishDate'] ?? NULL,
       ]);
     }
 
@@ -138,6 +143,23 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
       ])
       ->execute()
       ->first();
+  }
+
+  private static function resolveCampaignName(string $campaign_name): ?int {
+    if (empty(self::$campaignIds[$campaign_name])) {
+      $campaign = Api4\Campaign::get(FALSE)
+        ->addSelect('id')
+        ->addWhere('name', '=', $campaign_name)
+        ->setLimit(1)
+        ->execute()
+        ->first();
+
+      if (isset($campaign)) {
+        self::$campaignIds[$campaign_name] = $campaign['id'];
+      }
+    }
+
+    return self::$campaignIds[$campaign_name] ?? NULL;
   }
 
 }

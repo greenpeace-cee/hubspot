@@ -57,7 +57,7 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
           if (is_null($contact_id)) continue;
 
-          $email_recipient_records[] = [
+          $email_recipient_records["$online_mailing_activity_id:$contact_id"] = [
             'activity_id'   => $online_mailing_activity_id,
             'contact_id'    => $contact_id,
             'received_date' => $event_time->format('c'),
@@ -68,7 +68,7 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
         civicrm_api4('EmailRecipient', 'save', [
           'checkPermissions' => FALSE,
-          'records' => $email_recipient_records,
+          'records' => array_values($email_recipient_records),
           'match' => ['activity_id', 'contact_id'],
         ]);
       }

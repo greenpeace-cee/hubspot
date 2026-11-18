@@ -45,7 +45,8 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
         foreach ($delivered_events as $event) {
           $event_time = new DateTimeImmutable('@' . (string) ($event['created'] / 1000));
-          $event_day = $event_time->setTime(0, 0);
+          $timezone = new DateTimeZone(date_default_timezone_get());
+          $event_day = $event_time->setTimezone($timezone)->setTime(0, 0);
 
           $online_mailing_activity_id = self::getOrCreateOnlineMailingActivity([
             'activity_date_time' => $event_day->format('c'),

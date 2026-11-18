@@ -51,7 +51,7 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
           $online_mailing_activity_id = self::getOrCreateOnlineMailingActivity([
             'activity_date_time' => $event_day->format('c'),
             'email_message_id'   => $email_message['id'],
-            'subject'            => "HubSpot Mailing ({$email_message['external_id']}): {$email_message['subject']}",
+            'subject'            => substr("HubSpot Mailing ({$email_message['external_id']}): {$email_message['subject']}", 0, 255),
           ])['id'];
 
           $contact_id = self::getContactIdForEmail($event['recipient']);

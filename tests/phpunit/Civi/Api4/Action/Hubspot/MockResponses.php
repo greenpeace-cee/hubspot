@@ -218,7 +218,7 @@ class MockResponses {
           200,
           [ 'Content-Type' => 'application/json' ],
           json_encode([
-            'paging'  => [],
+            'paging'  => isset($parameters['after']) ? [ 'next' => [ 'after' => $parameters['after'] ] ] : [],
             'results' => array_map(
               fn ($event) => [
                 'id'         => $event['id'] ?? self::generateUUID(),
@@ -258,8 +258,8 @@ class MockResponses {
           200,
           [ 'Content-Type' => 'application/json' ],
           json_encode([
-            'hasMore' => FALSE,
-            'offset' => self::generateRandomString(20),
+            'hasMore' => isset($parameters['offset']),
+            'offset' => $parameters['offset'] ?? self::generateRandomString(20),
             'timeline' => array_map(
               fn ($item) => [
                 'timestamp'         => (float) date('U.v', $item['timestamp']) * 1000,

@@ -38,6 +38,27 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
    */
   protected bool $forceFromLocalSubscriptions = FALSE;
 
+  /**
+   * Number of subscription events to fetch from HubSpot per request
+   *
+   * @var int
+   */
+  protected int $eventPageSize = 100;
+
+  /**
+   * Number of subscription timeline items to fetch from HubSpot per request
+   *
+   * @var int
+   */
+  protected int $timelinePageSize = 1000;
+
+  /**
+   * Number of local subscriptions to load per query
+   *
+   * @var int
+   */
+  protected int $subscriptionPageSize = 10000;
+
   private static array $hubspotSubscriptionDefinitions;
   private static array $subscriptions;
 
@@ -61,7 +82,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
     $from = new DateTimeImmutable($latest_sync_activity['activity_date_time'] ?? '@0');
 
-    foreach (self::getSubscriptionEvents($from) as $event) {
+    foreach (self::getSubscriptionEvents($from, $this->eventPageSize, $this->timelinePageSize) as $event) {
       $contact_id = self::resolveHubspotContactId($event['hubspot_contact_id']);
 
       if (is_null($contact_id)) continue;
@@ -93,7 +114,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
     $subscription_updater = new BatchSubscriptionUpdater(['queue_name' => self::QUEUE, 'batch_size' => 100]);
 
-    foreach (self::getRecentSubscriptionChanges($this->forceFromLocalSubscriptions ? NULL : $from) as $contact_subscription) {
+    foreach (self::getRecentSubscriptionChanges($this->forceFromLocalSubscriptions ? NULL : $from, $this->subscriptionPageSize) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';
 
       $update = [
@@ -123,7 +144,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     $subscription_updater->flush();
   }
 
-  private static function getChangeEvents(int $earliest_time, int $latest_time): array {
+  private static function getChangeEvents(int $earliest_time, int $latest_time, int $page_size): array {
     $change_events = [];
     $has_more = TRUE;
     $offset = NULL;
@@ -133,7 +154,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         'startTimestamp' => $earliest_time,
         'endTimestamp'   => $latest_time,
         'offset'         => $offset,
-        'limit'          => 1000,
+        'limit'          => $page_size,
       ]);
 
       $timeline_response_body = json_decode((string) $timeline_response->getBody(), TRUE);
@@ -152,8 +173,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     return $change_events;
   }
 
-  private static function getRecentSubscriptionChanges(?DateTimeImmutable $from) {
-    $page_size = 10000;
+  private static function getRecentSubscriptionChanges(?DateTimeImmutable $from, int $page_size) {
     $offset = 0;
 
     while (TRUE) {
@@ -193,12 +213,12 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     }
   }
 
-  private static function getSubscriptionEvents(DateTimeImmutable $from) {
+  private static function getSubscriptionEvents(DateTimeImmutable $from, int $page_size, int $timeline_page_size) {
     while (TRUE) {
       $events_result = ApiClient::getEvents([
         'after'          => $page ?? NULL,
         'eventType'      => self::SUBSCRIPTION_STATUS_EVENT,
-        'limit'          => 100,
+        'limit'          => $page_size,
         'occurredAfter'  => $from->format('c'),
         'sort'           => 'occurredAt',
       ]);
@@ -219,7 +239,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
       $latest_time = self::toTimestampMilliseconds(end($events)['date']);
       $earliest_time = self::toTimestampMilliseconds(reset($events)['date']);
-      $change_events = self::getChangeEvents($earliest_time, $latest_time);
+      $change_events = self::getChangeEvents($earliest_time, $latest_time, $timeline_page_size);
 
       foreach ($events as $i => $event) {
         $event_id = $event['id'];

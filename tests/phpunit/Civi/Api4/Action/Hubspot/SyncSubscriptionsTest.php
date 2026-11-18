@@ -89,29 +89,61 @@ class SyncSubscriptionsTest extends TestBase {
       ],
     ];
 
-    self::$mockHandler->append(MockResponses::getEvents(200, [ 'events' => $events ]));
+    // Two pages of events: [0, 1] and [2]
+    foreach ([[0, 1], [2]] as $page => $event_indexes) {
+      self::$mockHandler->append(MockResponses::getEvents(200, [
+        'events' => array_map(fn ($i) => $events[$i], $event_indexes),
+        'after'  => $page === 0 ? 'page-2-cursor' : NULL,
+      ]));
 
-    self::$mockHandler->append(MockResponses::getSubscriptionsTimeline(200, [
-      'items' => array_map(
-        fn ($i) => [
-          'change'          => $events[$i]['change'],
-          'event_id'        => $events[$i]['id'],
-          'email'           => $contacts[$i]['hubspot_sync.email'],
-          'subscription_id' => self::$subscriptions[0]['hubspot_id'],
-          'timestamp'       => $events[$i]['timestamp'],
-        ],
-        range(2, 0)
-      )
-    ]));
+      // One timeline item per request, so the first page of events needs two timeline pages
+      foreach (array_reverse($event_indexes) as $n => $i) {
+        self::$mockHandler->append(MockResponses::getSubscriptionsTimeline(200, [
+          'items' => [
+            [
+              'change'          => $events[$i]['change'],
+              'event_id'        => $events[$i]['id'],
+              'email'           => $contacts[$i]['hubspot_sync.email'],
+              'subscription_id' => self::$subscriptions[0]['hubspot_id'],
+              'timestamp'       => $events[$i]['timestamp'],
+            ],
+          ],
+          'offset' => $n < count($event_indexes) - 1 ? 'timeline-page-2-offset' : NULL,
+        ]));
+      }
 
-    self::$mockHandler->append(MockResponses::batchGetContacts(200, [
-      'contacts' => array_map(fn ($contact) => [
-        'hubspot_id' => $contact['hubspot_sync.hubspot_id'],
-        'email'      => $contact['hubspot_sync.email'],
-      ], $contacts),
-    ]));
+      self::$mockHandler->append(MockResponses::batchGetContacts(200, [
+        'contacts' => array_map(fn ($i) => [
+          'hubspot_id' => $contacts[$i]['hubspot_sync.hubspot_id'],
+          'email'      => $contacts[$i]['hubspot_sync.email'],
+        ], $event_indexes),
+      ]));
+    }
 
-    $sync_result = (array) Api4\Hubspot::syncSubscriptions(FALSE)->execute();
+    $sync_result = (array) Api4\Hubspot::syncSubscriptions(FALSE)
+      ->setEventPageSize(2)
+      ->setTimelinePageSize(1)
+      ->setSubscriptionPageSize(2)
+      ->execute();
+
+    $this->assertEquals(0, self::$mockHandler->count(), 'Both pages of events should have been requested');
+
+    parse_str(self::shiftHistory()['request']->getUri()->getQuery(), $first_page_query);
+    $this->assertEquals(2, $first_page_query['limit']);
+    $this->assertArrayNotHasKey('after', $first_page_query);
+
+    parse_str(self::shiftHistory()['request']->getUri()->getQuery(), $first_timeline_page_query);
+    $this->assertEquals(1, $first_timeline_page_query['limit']);
+    $this->assertArrayNotHasKey('offset', $first_timeline_page_query);
+
+    parse_str(self::shiftHistory()['request']->getUri()->getQuery(), $second_timeline_page_query);
+    $this->assertEquals(1, $second_timeline_page_query['limit']);
+    $this->assertEquals('timeline-page-2-offset', $second_timeline_page_query['offset']);
+
+    // Skip the contacts request of the first page
+    parse_str(self::shiftHistory(2)['request']->getUri()->getQuery(), $second_page_query);
+    $this->assertEquals(2, $second_page_query['limit']);
+    $this->assertEquals('page-2-cursor', $second_page_query['after']);
 
     $this->assertEquals([
       'received' => 3,

@@ -198,7 +198,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       $events_result = ApiClient::getEvents([
         'after'          => $page ?? NULL,
         'eventType'      => self::SUBSCRIPTION_STATUS_EVENT,
-        'limit'          => 10,
+        'limit'          => 100,
         'occurredAfter'  => $from->format('c'),
         'sort'           => 'occurredAt',
       ]);

@@ -70,7 +70,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       throw new \CRM_Core_Exception('eventPageSize must not be greater than 100');
     }
 
-    // A limit of 0 means "no limit" in APIv4, so paging would never advance
+    // A limit of 0 means "no limit" in APIv4, which would load all subscriptions at once
     if ($this->subscriptionPageSize < 1) {
       throw new \CRM_Core_Exception('subscriptionPageSize must be greater than 0');
     }
@@ -92,7 +92,11 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
     $from = new DateTimeImmutable($latest_sync_activity['activity_date_time'] ?? '@0');
 
-    foreach (self::getSubscriptionEvents($from, $this->eventPageSize, $this->timelinePageSize) as $event) {
+    // Only changes in [$from, $to) are handled by this run. $to becomes $from of the next run,
+    // so that changes made while this one is running aren't missed.
+    $to = new DateTimeImmutable(date('Y-m-d H:i:s'));
+
+    foreach (self::getSubscriptionEvents($from, $to, $this->eventPageSize, $this->timelinePageSize) as $event) {
       $contact_id = $event['contact_id'];
 
       if (is_null($contact_id)) continue;
@@ -124,7 +128,7 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
 
     $subscription_updater = new BatchSubscriptionUpdater(['queue_name' => self::QUEUE, 'batch_size' => 100]);
 
-    foreach (self::getRecentSubscriptionChanges($this->forceFromLocalSubscriptions ? NULL : $from, $this->subscriptionPageSize) as $contact_subscription) {
+    foreach (self::getRecentSubscriptionChanges($this->forceFromLocalSubscriptions ? NULL : $from, $to, $this->subscriptionPageSize) as $contact_subscription) {
       $status = $contact_subscription['status'] === 'opt_in' ? 'SUBSCRIBED' : 'UNSUBSCRIBED';
 
       $update = [
@@ -143,15 +147,14 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       $result['sent']++;
     }
 
-    // TODO: should we set a specific activity_date_time? This feels racy for long-running syncs ...
-    // (e.g. set $to = now at start of sync, limit what we look at to < $to and store that date)
+    $subscription_updater->flush();
+
     Api4\Activity::create(FALSE)
       ->addValue('activity_type_id:name', 'hubspot_subscription_sync')
+      ->addValue('activity_date_time',    $to->format('Y-m-d H:i:s'))
       ->addValue('source_contact_id',     Session::getLoggedInContactId())
       ->addValue('subject',               "Received: {$result['received']}, Sent: {$result['sent']}")
       ->execute();
-
-    $subscription_updater->flush();
   }
 
   private static function getChangeEvents(int $earliest_time, int $latest_time, int $page_size): array {
@@ -183,12 +186,14 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
     return $change_events;
   }
 
-  private static function getRecentSubscriptionChanges(?DateTimeImmutable $from, int $page_size) {
-    $offset = 0;
+  private static function getRecentSubscriptionChanges(?DateTimeImmutable $from, DateTimeImmutable $to, int $page_size) {
+    // Page by ID rather than by offset: rows modified during the sync drop out of the result set
+    $last_id = 0;
 
     while (TRUE) {
       $subscription_contact_query = Api4\SubscriptionContact::get(FALSE)
         ->addSelect(
+          'id',
           'CONCAT(contact_id.hubspot_sync.email) AS email',
           'CONCAT(subscription_id.hubspot_id) AS subscription',
           'subscription_status:name'
@@ -201,12 +206,13 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         // we don't really know which email is currently linked in hubspot unless the last status is successful
         ->addWhere('contact_id.hubspot_sync.sync_status', '=', 'successful')
         ->addWhere('contact_id.hubspot_sync.owned_by', '=', self::hubspotAccount()['owner_identifier'])
+        ->addWhere('modified_date', '<', $to->format('Y-m-d H:i:s'))
+        ->addWhere('id', '>', $last_id)
         ->addOrderBy('id', 'ASC')
-        ->setLimit($page_size)
-        ->setOffset($offset);
+        ->setLimit($page_size);
 
       if (!is_null($from)) {
-        $subscription_contact_query->addWhere('modified_date', '>', $from->format('Y-m-d H:i:s'));
+        $subscription_contact_query->addWhere('modified_date', '>=', $from->format('Y-m-d H:i:s'));
       }
       $subscription_contact_results = $subscription_contact_query->execute();
 
@@ -215,21 +221,22 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
       foreach ($subscription_contact_results as $contact_subscription) {
         $contact_subscription['status'] = $contact_subscription['subscription_status:name'];
         unset($contact_subscription['subscription_status:name']);
+        $last_id = $contact_subscription['id'];
 
         yield $contact_subscription;
       }
-
-      $offset += $page_size;
     }
   }
 
-  private static function getSubscriptionEvents(DateTimeImmutable $from, int $page_size, int $timeline_page_size) {
+  private static function getSubscriptionEvents(DateTimeImmutable $from, DateTimeImmutable $to, int $page_size, int $timeline_page_size) {
     while (TRUE) {
       $events_result = ApiClient::getEvents([
         'after'          => $page ?? NULL,
         'eventType'      => self::SUBSCRIPTION_STATUS_EVENT,
         'limit'          => $page_size,
-        'occurredAfter'  => $from->format('c'),
+        // One second of overlap with the previous run, in case both bounds are exclusive
+        'occurredAfter'  => max($from->modify('-1 second'), new DateTimeImmutable('@0'))->format('c'),
+        'occurredBefore' => $to->format('c'),
         'sort'           => 'occurredAt',
       ]);
 
@@ -283,9 +290,9 @@ class SyncSubscriptions extends Api4\Generic\AbstractAction {
         yield $event;
       }
 
-      if (!isset($event_page['paging']['next'])) break;
+      $page = $event_page['paging']['next']['after'] ?? NULL;
 
-      $page = $event_page['paging']['next']['after'] ?? '';
+      if (empty($page)) break;
     }
   }
 

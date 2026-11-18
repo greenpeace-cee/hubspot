@@ -48,7 +48,7 @@ class SyncSubscriptionsTest extends TestBase {
   }
 
   public function testSyncSubscriptions(): void {
-    $contacts = array_slice(self::loadAllContacts(['id', 'hubspot_sync.*']), 0, 4);
+    $contacts = array_slice(self::loadAllContacts(['id', 'hubspot_sync.*']), 0, 6);
 
     $subscription_sync_activities = (array) Api4\Activity::get(FALSE)
       ->addWhere('activity_type_id:name', '=', 'hubspot_subscription_sync')
@@ -70,7 +70,20 @@ class SyncSubscriptionsTest extends TestBase {
         'subscription_id' => self::$subscriptions[0]['id'],
         'subscription_status:name' => 'opt_in',
       ])
+      ->addRecord([
+        'contact_id' => $contacts[4]['id'],
+        'subscription_id' => self::$subscriptions[0]['id'],
+        'subscription_status:name' => 'opt_in',
+      ])
+      ->addRecord([
+        'contact_id' => $contacts[5]['id'],
+        'subscription_id' => self::$subscriptions[0]['id'],
+        'subscription_status:name' => 'opt_out',
+      ])
       ->execute();
+
+    // Only changes made before the sync starts are sent, and modified_date has a resolution of one second
+    \CRM_Core_DAO::executeQuery('UPDATE civicrm_subscription_contact SET modified_date = modified_date - INTERVAL 1 MINUTE');
 
     $events = [
       [
@@ -154,7 +167,8 @@ class SyncSubscriptionsTest extends TestBase {
 
     $this->assertEquals([
       'received' => 3,
-      'sent'     => 4,
+      // contacts #3 to #5 (two pages): subscriptions changed by this run's events are sent by the next run
+      'sent'     => 3,
     ], $sync_result);
 
     self::$mockHandler->append(MockResponses::batchUpdateSubscriptionStatus(200));
@@ -170,7 +184,7 @@ class SyncSubscriptionsTest extends TestBase {
       [
         'id'                => $subscription_sync_activities[0]['id'],
         'source_contact_id' => Session::getLoggedInContactId(),
-        'subject'           => 'Received: 3, Sent: 4',
+        'subject'           => 'Received: 3, Sent: 3',
       ],
     ], $subscription_sync_activities);
 
@@ -179,7 +193,7 @@ class SyncSubscriptionsTest extends TestBase {
       ->addOrderBy('contact_id', 'ASC')
       ->execute();
 
-    $this->assertEquals(4, count($subscription_contacts));
+    $this->assertEquals(6, count($subscription_contacts));
 
     $this->assertEquals([
       [
@@ -206,7 +220,66 @@ class SyncSubscriptionsTest extends TestBase {
         'subscription_id'          => self::$subscriptions[0]['id'],
         'subscription_status:name' => 'opt_in',
       ],
+      [
+        'id'                       => $subscription_contacts[4]['id'],
+        'contact_id'               => $contacts[4]['id'],
+        'subscription_id'          => self::$subscriptions[0]['id'],
+        'subscription_status:name' => 'opt_in',
+      ],
+      [
+        'id'                       => $subscription_contacts[5]['id'],
+        'contact_id'               => $contacts[5]['id'],
+        'subscription_id'          => self::$subscriptions[0]['id'],
+        'subscription_status:name' => 'opt_out',
+      ],
     ], $subscription_contacts);
+  }
+
+  public function testSyncWindow(): void {
+    $contact = self::loadAllContacts(['id'])[0];
+
+    // No events, but a local subscription is created while the first sync is running
+    self::$mockHandler->append(function () use ($contact) {
+      Api4\SubscriptionContact::create(FALSE)
+        ->addValue('contact_id', $contact['id'])
+        ->addValue('subscription_id', self::$subscriptions[0]['id'])
+        ->addValue('subscription_status:name', 'opt_in')
+        ->execute();
+
+      return MockResponses::getEvents(200);
+    });
+
+    $first_result = (array) Api4\Hubspot::syncSubscriptions(FALSE)->execute();
+    $this->assertEquals(['received' => 0, 'sent' => 0], $first_result);
+
+    $sync_date = new DateTimeImmutable(Api4\Activity::get(FALSE)
+      ->addSelect('activity_date_time')
+      ->addWhere('activity_type_id:name', '=', 'hubspot_subscription_sync')
+      ->execute()
+      ->single()['activity_date_time']);
+
+    // The first sync only asked for events up to the date it stored ...
+    parse_str(self::shiftHistory()['request']->getUri()->getQuery(), $first_query);
+    $this->assertEquals($sync_date->format('c'), $first_query['occurredBefore']);
+
+    // modified_date has a resolution of one second, so move the first sync and the subscription back in time
+    $sync_date = $sync_date->modify('-1 minute');
+
+    Api4\Activity::update(FALSE)
+      ->addValue('activity_date_time', $sync_date->format('Y-m-d H:i:s'))
+      ->addWhere('activity_type_id:name', '=', 'hubspot_subscription_sync')
+      ->execute();
+
+    \CRM_Core_DAO::executeQuery('UPDATE civicrm_subscription_contact SET modified_date = modified_date - INTERVAL 1 MINUTE');
+
+    // ... and the second one continues from there (with one second of overlap), picking up the subscription created in between
+    self::$mockHandler->append(MockResponses::getEvents(200));
+
+    $second_result = (array) Api4\Hubspot::syncSubscriptions(FALSE)->execute();
+    $this->assertEquals(['received' => 0, 'sent' => 1], $second_result);
+
+    parse_str(self::shiftHistory()['request']->getUri()->getQuery(), $second_query);
+    $this->assertEquals($sync_date->modify('-1 second')->format('c'), $second_query['occurredAfter']);
   }
 
   public function testSyncSubscriptionsIgnoresMergedContacts(): void {

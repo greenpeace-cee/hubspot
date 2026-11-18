@@ -171,9 +171,46 @@ class SyncSubscriptionsTest extends TestBase {
       'sent'     => 3,
     ], $sync_result);
 
+    // HubSpot already has the status of contact #3, a different one for #4 and none for #5
+    self::$mockHandler->append(MockResponses::batchGetSubscriptionStatuses(200, [
+      'subscribers' => [
+        [
+          'email'           => $contacts[3]['hubspot_sync.email'],
+          'subscription_id' => self::$subscriptions[0]['hubspot_id'],
+          'status'          => 'SUBSCRIBED',
+        ],
+        [
+          'email'           => $contacts[4]['hubspot_sync.email'],
+          'subscription_id' => self::$subscriptions[0]['hubspot_id'],
+          'status'          => 'UNSUBSCRIBED',
+        ],
+      ],
+    ]));
+
     self::$mockHandler->append(MockResponses::batchUpdateSubscriptionStatus(200));
 
     $this->processQueueItems('hubspot-sync-subscriptions');
+
+    // Only the subscriptions that differ from HubSpot are written
+    $this->assertEquals(
+      [
+        'inputs' => [
+          [
+            'channel'            => 'EMAIL',
+            'subscriberIdString' => $contacts[4]['hubspot_sync.email'],
+            'subscriptionId'     => self::$subscriptions[0]['hubspot_id'],
+            'statusState'        => 'SUBSCRIBED',
+          ],
+          [
+            'channel'            => 'EMAIL',
+            'subscriberIdString' => $contacts[5]['hubspot_sync.email'],
+            'subscriptionId'     => self::$subscriptions[0]['hubspot_id'],
+            'statusState'        => 'UNSUBSCRIBED',
+          ],
+        ],
+      ],
+      json_decode((string) self::$mockHandler->getLastRequest()->getBody(), TRUE)
+    );
 
     $subscription_sync_activities = (array) Api4\Activity::get(FALSE)
       ->addSelect('source_contact_id', 'subject')

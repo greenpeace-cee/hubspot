@@ -78,7 +78,7 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
   }
 
   private static function getContactIdForEmail(string $email): ?int {
-    $contact = Api4\Contact::get(TRUE)
+    $contact = Api4\Contact::get(FALSE)
       ->addSelect('id')
       ->addWhere('hubspot_sync.email', '=', $email)
       ->setLimit(1)

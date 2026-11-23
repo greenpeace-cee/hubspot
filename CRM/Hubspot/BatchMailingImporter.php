@@ -6,6 +6,8 @@ use CRM_Hubspot_ApiClient as ApiClient;
 
 class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
+  const DELIVERED_EVENTS_PAGE_SIZE = 1000;
+
   private static array $campaignIds = [];
   private static array $contactsByEmail = [];
   private static array $onlineMailingActivities = [];
@@ -46,6 +48,7 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
           'appId'      => $email_campaign['appId'],
           'campaignId' => $email_campaign_id,
           'eventType'  => 'DELIVERED',
+          'limit'      => self::DELIVERED_EVENTS_PAGE_SIZE,
         ]);
 
         $email_recipient_records = [];

@@ -104,7 +104,17 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
     while ($has_more) {
       $params['offset'] = $offset;
-      $response = ApiClient::getEmailEvents($params);
+
+      try {
+        $response = ApiClient::getEmailEvents($params);
+      } catch (GuzzleHttp\Exception\BadResponseException $exception) {
+        $status_code = $exception->getResponse()->getStatusCode();
+
+        if ($status_code === 429) sleep(60);
+
+        throw $exception;
+      }
+
       $response_payload = json_decode((string) $response->getBody(), TRUE);
 
       foreach ($response_payload['events'] as $events) yield $events;
@@ -119,11 +129,13 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
       $email_campaign_response = ApiClient::getEmailCampaignById($email_campaign_id);
       return json_decode((string) $email_campaign_response->getBody(), TRUE);
     } catch (GuzzleHttp\Exception\BadResponseException $exception) {
-      if ($exception->getResponse()->getStatusCode() === 404) {
-        return NULL;
-      } else {
-        throw $exception;
-      }
+      $status_code = $exception->getResponse()->getStatusCode();
+
+      if ($status_code === 404) return NULL;
+
+      if ($status_code === 429) sleep(60);
+
+      throw $exception;
     }
   }
 

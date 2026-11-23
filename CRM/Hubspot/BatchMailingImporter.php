@@ -70,15 +70,13 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
             'contact_id'    => $contact['id'],
             'received_date' => $event_time->format('c'),
           ];
+
+          if (count($email_recipient_records) < 100) continue;
+
+          self::saveEmailRecipients($email_recipient_records);
         }
 
-        if (empty($email_recipient_records)) continue;
-
-        civicrm_api4('EmailRecipient', 'save', [
-          'checkPermissions' => FALSE,
-          'records' => array_values($email_recipient_records),
-          'match' => ['activity_id', 'contact_id'],
-        ]);
+        self::saveEmailRecipients($email_recipient_records);
       }
     }
 
@@ -180,6 +178,18 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
     }
 
     return self::$campaignIds[$campaign_name] ?? NULL;
+  }
+
+  private static function saveEmailRecipients(array &$records): void {
+    if (empty($records)) return;
+
+    civicrm_api4('EmailRecipient', 'save', [
+      'checkPermissions' => FALSE,
+      'records' => array_values($records),
+      'match' => ['activity_id', 'contact_id'],
+    ]);
+
+    $records = [];
   }
 
 }

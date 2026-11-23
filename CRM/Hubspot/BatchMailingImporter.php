@@ -7,6 +7,8 @@ use CRM_Hubspot_ApiClient as ApiClient;
 class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
 
   private static array $campaignIds = [];
+  private static array $contactsByEmail = [];
+  private static array $onlineMailingActivities = [];
 
   public static function processBatch(CRM_Queue_TaskContext $_context, array $batch): bool {
     $email_message_records = Api4\EmailMessage::save(FALSE)->setMatch(['external_id']);
@@ -49,6 +51,10 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
         $email_recipient_records = [];
 
         foreach ($delivered_events as $event) {
+          $contact = self::getContactWithEmail($event['recipient']);
+
+          if (is_null($contact)) continue;
+
           $event_time = new DateTimeImmutable('@' . (string) ($event['created'] / 1000));
           $timezone = new DateTimeZone(date_default_timezone_get());
           $event_day = $event_time->setTimezone($timezone)->setTime(0, 0);
@@ -59,13 +65,9 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
             'subject'            => substr("HubSpot Mailing ({$email_message['external_id']}): {$email_message['subject']}", 0, 255),
           ])['id'];
 
-          $contact_id = self::getContactIdForEmail($event['recipient']);
-
-          if (is_null($contact_id)) continue;
-
-          $email_recipient_records["$online_mailing_activity_id:$contact_id"] = [
+          $email_recipient_records["$online_mailing_activity_id:{$contact['id']}"] = [
             'activity_id'   => $online_mailing_activity_id,
-            'contact_id'    => $contact_id,
+            'contact_id'    => $contact['id'],
             'received_date' => $event_time->format('c'),
           ];
         }
@@ -83,19 +85,19 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
     return TRUE;
   }
 
-  private static function getContactIdForEmail(string $email): ?int {
-    $contact = Api4\Contact::get(FALSE)
-      ->addSelect('id')
-      ->addWhere('hubspot_sync.email', '=', $email)
-      ->addWhere('hubspot_sync.sync_status', 'NOT IN', ['deleted', 'merged'])
-      ->addWhere('is_deleted', '=', FALSE)
-      ->setLimit(1)
-      ->execute()
-      ->first();
+  private static function getContactWithEmail(string $email): ?array {
+    if (empty(self::$contactsByEmail[$email])) {
+      self::$contactsByEmail[$email] = Api4\Contact::get(FALSE)
+        ->addSelect('id')
+        ->addWhere('hubspot_sync.email', '=', $email)
+        ->addWhere('hubspot_sync.sync_status', 'NOT IN', ['deleted', 'merged'])
+        ->addWhere('is_deleted', '=', FALSE)
+        ->setLimit(1)
+        ->execute()
+        ->first();
+    }
 
-    if (is_null($contact)) return NULL;
-
-    return $contact['id'];
+    return self::$contactsByEmail[$email] ?? NULL;
   }
 
   private static function getDeliveredEmailEvents(array $params = []): Generator {
@@ -139,22 +141,28 @@ class CRM_Hubspot_BatchMailingImporter extends CRM_Hubspot_BatchProcessor {
     }
   }
 
-  private static function getOrCreateOnlineMailingActivity(array $params): array {
-    return Api4\Activity::save(FALSE)
-      ->addRecord([
-        'activity_date_time'                          => $params['activity_date_time'],
-        'activity_type_id:name'                       => 'Online_Mailing',
-        'online_mailing_information.email_message_id' => $params['email_message_id'],
-        'source_contact_id'                           => Session::getLoggedInContactId(),
-        'subject'                                     => $params['subject'],
-      ])
-      ->setMatch([
-        'activity_type_id',
-        'activity_date_time',
-        'online_mailing_information.email_message_id',
-      ])
-      ->execute()
-      ->first();
+  private static function getOrCreateOnlineMailingActivity(array $params): ?array {
+    $activity_date = $params['activity_date_time'];
+
+    if (empty(self::$onlineMailingActivities[$activity_date])) {
+      self::$onlineMailingActivities[$activity_date] = Api4\Activity::save(FALSE)
+        ->addRecord([
+          'activity_date_time'                          => $activity_date,
+          'activity_type_id:name'                       => 'Online_Mailing',
+          'online_mailing_information.email_message_id' => $params['email_message_id'],
+          'source_contact_id'                           => Session::getLoggedInContactId(),
+          'subject'                                     => $params['subject'],
+        ])
+        ->setMatch([
+          'activity_type_id',
+          'activity_date_time',
+          'online_mailing_information.email_message_id',
+        ])
+        ->execute()
+        ->first();
+    }
+
+    return self::$onlineMailingActivities[$activity_date] ?? NULL;
   }
 
   private static function resolveCampaignName(string $campaign_name): ?int {

@@ -55,7 +55,6 @@ class SyncMailings extends Api4\Generic\DAOGetAction {
       $query_params = [
         'campaign=' . urlencode($campaign_id),
         'includedProperties=allEmailCampaignIds',
-        'includedProperties=primaryEmailCampaignId',
         'includedProperties=from',
         'includedProperties=id',
         'includedProperties=publishDate',

@@ -76,13 +76,13 @@ class CRM_Hubspot_ApiClient {
 
   public static function getEmailEvents(array $query = []): Response {
     return self::request('GET', '/email/public/v1/events', [
-      'query' => array_filter($query),
+      'query' => $query,
     ]);
   }
 
   public static function getEvents(array $query = []): Response {
     return self::request('GET', '/events/event-occurrences/2026-03', [
-      'query' => array_filter($query),
+      'query' => $query,
     ]);
   }
 
@@ -104,12 +104,12 @@ class CRM_Hubspot_ApiClient {
 
   public static function getSubscriptionsTimeline(array $parameters = []): Response {
     return self::request('GET', '/email/public/v1/subscriptions/timeline', [
-      'query' => array_filter([
+      'query' => [
         'startTimestamp' => $parameters['startTimestamp'] ?? NULL,
         'endTimestamp'   => $parameters['endTimestamp'] ?? NULL,
         'offset'         => $parameters['offset'] ?? NULL,
         'limit'          => $parameters['limit'] ?? NULL,
-      ]),
+      ],
     ]);
   }
 
@@ -156,7 +156,7 @@ class CRM_Hubspot_ApiClient {
     $api_key = self::hubspotAccount()['api_key'];
 
     if (isset($options['query']) && is_array($options['query'])) {
-      $options['query'] = array_filter($options['query']);
+      $options['query'] = array_filter($options['query'], fn ($param) => !is_null($param));
     }
 
     $options = array_merge($options, [

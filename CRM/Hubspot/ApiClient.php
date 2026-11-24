@@ -70,9 +70,31 @@ class CRM_Hubspot_ApiClient {
     ]);
   }
 
+  public static function getEmailCampaignById(string $campaign_id): Response {
+    return self::request('GET', "/email/public/v1/campaigns/$campaign_id");
+  }
+
+  public static function getEmailEvents(array $query = []): Response {
+    return self::request('GET', '/email/public/v1/events', [
+      'query' => $query,
+    ]);
+  }
+
   public static function getEvents(array $query = []): Response {
     return self::request('GET', '/events/event-occurrences/2026-03', [
-      'query' => array_filter($query),
+      'query' => $query,
+    ]);
+  }
+
+  public static function getMarketingCampaigns($query = []): Response {
+    return self::request('GET', "/marketing/campaigns/2026-03", [
+      'query' => $query,
+    ]);
+  }
+
+  public static function getMarketingEmails($query = []): Response {
+    return self::request('GET', '/marketing/emails/2026-03', [
+      'query' => $query,
     ]);
   }
 
@@ -82,12 +104,12 @@ class CRM_Hubspot_ApiClient {
 
   public static function getSubscriptionsTimeline(array $parameters = []): Response {
     return self::request('GET', '/email/public/v1/subscriptions/timeline', [
-      'query' => array_filter([
+      'query' => [
         'startTimestamp' => $parameters['startTimestamp'] ?? NULL,
         'endTimestamp'   => $parameters['endTimestamp'] ?? NULL,
         'offset'         => $parameters['offset'] ?? NULL,
         'limit'          => $parameters['limit'] ?? NULL,
-      ]),
+      ],
     ]);
   }
 
@@ -132,6 +154,10 @@ class CRM_Hubspot_ApiClient {
 
   private static function request(string $method, string $endpoint, array $options = []): Response {
     $api_key = self::hubspotAccount()['api_key'];
+
+    if (isset($options['query']) && is_array($options['query'])) {
+      $options['query'] = array_filter($options['query'], fn ($param) => !is_null($param));
+    }
 
     $options = array_merge($options, [
       'headers' => array_merge(

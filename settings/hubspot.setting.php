@@ -13,4 +13,14 @@ return [
     'is_domain'   => 1,
     'is_contact'  => 0,
   ],
+  'hubspot_default_mailing_campaign_id' => [
+    'name'        => 'hubspot_default_mailing_campaign_id',
+    'title'       => E::ts('HubSpot Default Mailing Campaign ID'),
+    'description' => E::ts('Fallback campaign ID for HubSpot Mailings, that cannot be linked to an existing campaign'),
+    'type'        => 'Integer',
+    'html_type'   => 'text',
+    'default'     => NULL,
+    'is_domain'   => 1,
+    'is_contact'  => 0,
+  ],
 ];
